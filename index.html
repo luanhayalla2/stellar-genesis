@@ -1,0 +1,40 @@
+<!doctype html>
+
+<html lang="pt-br">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- TODO: Set the document title to the name of your application -->
+  <link rel="icon" type="image/png" href="/favicon.png" />
+  <title>Infinity Galaxy - A Nova Geração</title>
+  <meta name="description" content="A experiência definitiva em exploração e gamificação cósmica." />
+  <meta name="author" content="Infinity Galaxy" />
+
+  <meta property="og:title" content="Infinity Galaxy" />
+  <meta property="og:description" content="A experiência definitiva em exploração e gamificação cósmica." />
+  <meta property="og:type" content="website" />
+  <meta property="og:image" content="/favicon.png" />
+
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:site" content="@InfinityGalaxy" />
+  <meta name="twitter:image" content="/favicon.png" />
+</head>
+
+<body>
+  <div id="root"></div>
+  <script>
+    // Limpeza de Service Workers antigos que podem interferir no roteamento (Ex: Workbox allowlist)
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function(registrations) {
+        for(let registration of registrations) {
+          registration.unregister();
+          console.log('Service Worker antigo desregistrado com sucesso.');
+        }
+      });
+    }
+  </script>
+  <script type="module" src="/src/main.tsx"></script>
+</body>
+
+</html>
