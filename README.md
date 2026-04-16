@@ -1,3 +1,5 @@
+![AppInfinity Galaxy Banner](./public/banner.png)
+
 # 🌌 AppInfinity Galaxy — A Nova Geração
 
 Bem-vindo ao **AppInfinity Galaxy**, uma experiência arcade espacial definitiva, revitalizada com um design premium, gameplay expandido e performance otimizada.
