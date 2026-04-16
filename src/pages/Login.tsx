@@ -186,18 +186,28 @@ const Login = () => {
                 </div>
               )}
 
-              <Button 
-                type="button" 
-                variant="ghost" 
-                onClick={() => {
-                  loginAsGuest();
-                  toast.success("Entrando em Modo de Demonstração (Convidado)");
-                  navigate("/");
-                }}
-                className="w-full text-xs text-muted-foreground hover:text-foreground transition-all duration-200"
-              >
-                Entrar como Convidado (Modo Developer)
-              </Button>
+              <div className="relative w-full">
+                <Button 
+                  type="button" 
+                  id="guest-mode-btn"
+                  onClick={() => {
+                    loginAsGuest();
+                    toast.success("Bem-vindo, Piloto Convidado! 🚀");
+                    navigate("/");
+                  }}
+                  className="w-full font-bold tracking-wide transition-all duration-200 group"
+                  style={{
+                    background: "linear-gradient(135deg, hsl(140,60%,25%), hsl(140,50%,18%))",
+                    border: "1px solid hsl(140,60%,35%)",
+                    boxShadow: "0 0 16px hsl(140 60% 40% / 0.25)",
+                    color: "hsl(140, 80%, 75%)",
+                  }}
+                >
+                  🎮 Jogar de Graça
+                </Button>
+                <span className="absolute -top-2 right-3 text-[9px] font-black tracking-widest px-1.5 py-0.5 rounded-full"
+                  style={{ background: "hsl(140,70%,28%)", color: "hsl(140,90%,80%)", border: "1px solid hsl(140,60%,40%)" }}>GRÁTIS</span>
+              </div>
 
               <div className="relative w-full">
                 <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-border/40" /></div>

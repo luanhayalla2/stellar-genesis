@@ -132,7 +132,7 @@ const SpaceGame = () => {
       .select('score, wave, asteroids_destroyed, created_at, user_id')
       .order('score', { ascending: false })
       .limit(15);
-    
+
     if (fullData) {
       leaderboardRef.current = fullData.map(d => ({
         score: d.score,
@@ -273,8 +273,8 @@ const SpaceGame = () => {
       }
 
       keysRef.current.add(e.key.toLowerCase());
-      if (["arrowup","arrowdown","arrowleft","arrowright"," ","tab"].includes(e.key.toLowerCase())) e.preventDefault();
-      
+      if (["arrowup", "arrowdown", "arrowleft", "arrowright", " ", "tab"].includes(e.key.toLowerCase())) e.preventDefault();
+
       // T to open chat
       if (e.key.toLowerCase() === 't' && gameStateRef.current.phase === 'playing') {
         e.preventDefault();
@@ -296,7 +296,7 @@ const SpaceGame = () => {
       }
     };
     const onKeyUp = (e: KeyboardEvent) => keysRef.current.delete(e.key.toLowerCase());
-    
+
     const onMouseMove = (e: MouseEvent) => {
       mouseRef.current.x = e.clientX;
       mouseRef.current.y = e.clientY;
@@ -361,7 +361,7 @@ const SpaceGame = () => {
         ctx.fillRect(0, 0, w, h);
         const availableScore = totalScoreRef.current - upgrades.score_spent;
         drawExploration(ctx, w, h, gs.exploringPlanet, upgrades, availableScore, shopSelectionRef.current);
-        
+
         // Shop navigation
         if (keys.has("arrowup") || keys.has("w")) {
           shopSelectionRef.current = Math.max(0, shopSelectionRef.current - 1);
@@ -388,7 +388,7 @@ const SpaceGame = () => {
             }
           }
         }
-        
+
         if (keys.has("escape")) {
           gs.phase = 'playing';
           gs.exploringPlanet = null;
@@ -397,53 +397,71 @@ const SpaceGame = () => {
         return;
       }
 
-      // === PHYSICS CONSTANTS (needed by all input branches) ===
+      // === PHYSICS CONSTANTS ===
       const speedMul = (ship.speedBoost ? 1.5 : 1) * (1 + upgrades.speed_bonus * 0.15);
       const accel = (ship.boosting ? BOOST_ACCEL : SHIP_ACCEL) * speedMul;
       const maxSpd = (ship.boosting ? MAX_BOOST_SPEED : MAX_SPEED) * speedMul;
+      ship.boosting = keys.has("shift") || (isMobile && touch.boosting);
 
-      // === INPUT (keyboard + mouse + touch) ===
+      // === INPUT: TWIN-STICK STYLE (Mouse aim + WASD move) ===
       if (isMobile && touch.joystickActive && touch.joystickMagnitude > 0) {
+        // --- TOUCH: joystick rotates and thrusts ---
         const targetAngle = touch.joystickAngle;
         let angleDiff = targetAngle - ship.angle;
         while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
         while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
         ship.angle += Math.sign(angleDiff) * Math.min(Math.abs(angleDiff), ROTATION_SPEED * 2);
         ship.thrust = touch.joystickMagnitude > 0.2;
-      } else if (!isMobile && mouseRef.current.active) {
-        // Mouse controls: Aim at cursor, thrust toward it when far enough
-        const dx = mouseRef.current.x - w / 2;
-        const dy = mouseRef.current.y - h / 2;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-
-        if (dist > 8) {
-          const targetAngle = Math.atan2(dy, dx);
-          let angleDiff = targetAngle - ship.angle;
-          while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
-          while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
-          ship.angle += Math.sign(angleDiff) * Math.min(Math.abs(angleDiff), ROTATION_SPEED * 1.5);
-          // Auto-thrust if cursor is far enough from center (ship position)
-          ship.thrust = dist > 60 || keys.has("w") || keys.has("arrowup");
-        } else {
-          ship.thrust = keys.has("w") || keys.has("arrowup");
+        if (ship.thrust) {
+          ship.vx += Math.cos(ship.angle) * accel;
+          ship.vy += Math.sin(ship.angle) * accel;
         }
-        // Allow keyboard strafing as fine adjustments
-        if (keys.has("a") || keys.has("arrowleft")) ship.vx -= accel * 0.3;
-        if (keys.has("d") || keys.has("arrowright")) ship.vx += accel * 0.3;
       } else {
-        if (keys.has("a") || keys.has("arrowleft")) ship.angle -= ROTATION_SPEED;
-        if (keys.has("d") || keys.has("arrowright")) ship.angle += ROTATION_SPEED;
-        ship.thrust = keys.has("w") || keys.has("arrowup");
-      }
-      ship.boosting = keys.has("shift") || (isMobile && touch.boosting);
+        // --- MOUSE AIM: ship always faces cursor ---
+        if (!isMobile && mouseRef.current.active) {
+          const aimDx = mouseRef.current.x - w / 2;
+          const aimDy = mouseRef.current.y - h / 2;
+          if (Math.sqrt(aimDx * aimDx + aimDy * aimDy) > 8) {
+            const targetAngle = Math.atan2(aimDy, aimDx);
+            let angleDiff = targetAngle - ship.angle;
+            while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+            while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+            // Smooth rotation toward cursor
+            ship.angle += Math.sign(angleDiff) * Math.min(Math.abs(angleDiff), ROTATION_SPEED * 2.5);
+          }
+        } else {
+          // --- KEYBOARD-ONLY: A/D rotate ship ---
+          if (keys.has("a") || keys.has("arrowleft")) ship.angle -= ROTATION_SPEED;
+          if (keys.has("d") || keys.has("arrowright")) ship.angle += ROTATION_SPEED;
+        }
 
-      if (ship.thrust) {
-        ship.vx += Math.cos(ship.angle) * accel;
-        ship.vy += Math.sin(ship.angle) * accel;
-      }
-      if (keys.has("s") || keys.has("arrowdown")) {
-        ship.vx -= Math.cos(ship.angle) * accel * 0.5;
-        ship.vy -= Math.sin(ship.angle) * accel * 0.5;
+        // --- WASD MOVEMENT (relative to ship facing direction) ---
+        const forward = { x: Math.cos(ship.angle), y: Math.sin(ship.angle) };
+        const right   = { x: Math.cos(ship.angle + Math.PI / 2), y: Math.sin(ship.angle + Math.PI / 2) };
+
+        // W = forward thrust
+        if (keys.has("w") || keys.has("arrowup")) {
+          ship.vx += forward.x * accel;
+          ship.vy += forward.y * accel;
+          ship.thrust = true;
+        } else {
+          ship.thrust = false;
+        }
+        // S = backward braking (reverse thrust at 60%)
+        if (keys.has("s") || keys.has("arrowdown")) {
+          ship.vx -= forward.x * accel * 0.6;
+          ship.vy -= forward.y * accel * 0.6;
+        }
+        // A = strafe left
+        if (keys.has("a") || keys.has("arrowleft")) {
+          ship.vx -= right.x * accel * 0.7;
+          ship.vy -= right.y * accel * 0.7;
+        }
+        // D = strafe right
+        if (keys.has("d") || keys.has("arrowright")) {
+          ship.vx += right.x * accel * 0.7;
+          ship.vy += right.y * accel * 0.7;
+        }
       }
 
       const spd = Math.sqrt(ship.vx ** 2 + ship.vy ** 2);
@@ -460,7 +478,7 @@ const SpaceGame = () => {
           const force = (bh.radius * 200) / (distSq + 1000);
           ship.vx += (dx / dist) * force;
           ship.vy += (dy / dist) * force;
-          
+
           if (dist < bh.radius && ship.invincible <= 0) {
             ship.hp -= 10; // Instakill or heavy damage
             if (ship.hp <= 0) { ship.hp = 0; gs.phase = 'gameover'; }
@@ -601,7 +619,7 @@ const SpaceGame = () => {
           });
           ws.asteroidsSpawned++;
         }
-        
+
         // Spawn Enemy Scouts starting from Wave 2
         if (ws.wave >= 2 && enemyShipsRef.current.length < 2 + Math.floor(ws.wave / 3) && Math.random() < 0.005 + ws.wave * 0.001) {
           const angle = Math.random() * Math.PI * 2;
@@ -964,24 +982,50 @@ const SpaceGame = () => {
         }
       }
 
-      // === DRAW CHAT ===
-      const msgs = getChatMessages();
-      if (msgs.length > 0 || chatOpenRef.current) {
-        // === DRAW CROSSHAIR ===
+      // === DRAW CROSSHAIR (mouse aim indicator) ===
       if (!isMobile && mouseRef.current.active && gs.phase === 'playing') {
-        ctx.strokeStyle = "hsla(180, 100%, 50%, 0.5)";
+        ctx.strokeStyle = "hsla(180, 100%, 60%, 0.6)";
         ctx.lineWidth = 1.5;
         const mx = mouseRef.current.x, my = mouseRef.current.y;
         ctx.beginPath();
-        ctx.arc(mx, my, 12, 0, Math.PI * 2);
-        ctx.moveTo(mx - 18, my); ctx.lineTo(mx - 6, my);
-        ctx.moveTo(mx + 6, my); ctx.lineTo(mx + 18, my);
-        ctx.moveTo(mx, my - 18); ctx.lineTo(mx, my - 6);
-        ctx.moveTo(mx, my + 6); ctx.lineTo(mx, my + 18);
+        ctx.arc(mx, my, 10, 0, Math.PI * 2);
+        ctx.moveTo(mx - 16, my); ctx.lineTo(mx - 5, my);
+        ctx.moveTo(mx + 5, my); ctx.lineTo(mx + 16, my);
+        ctx.moveTo(mx, my - 16); ctx.lineTo(mx, my - 5);
+        ctx.moveTo(mx, my + 5); ctx.lineTo(mx, my + 16);
         ctx.stroke();
       }
 
-      ctx.save();
+      // === DRAW DIRECTION HUD (WASD indicator) ===
+      if (!isMobile && gs.phase === 'playing') {
+        const hx = w - 68, hy = h - 68; // bottom-right anchor
+        const sz = 18, gap = 2;
+        const drawKey = (label: string, x: number, y: number, active: boolean) => {
+          ctx.fillStyle = active ? "hsla(180,100%,60%,0.85)" : "hsla(240,20%,30%,0.55)";
+          ctx.strokeStyle = active ? "hsla(180,100%,70%,0.9)" : "hsla(240,20%,50%,0.4)";
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.roundRect(x - sz/2, y - sz/2, sz, sz, 4);
+          ctx.fill(); ctx.stroke();
+          ctx.fillStyle = active ? "#fff" : "hsla(240,10%,70%,0.7)";
+          ctx.font = `bold 10px monospace`;
+          ctx.textAlign = "center"; ctx.textBaseline = "middle";
+          ctx.fillText(label, x, y);
+        };
+        const wDown = keys.has("w") || keys.has("arrowup");
+        const sDown = keys.has("s") || keys.has("arrowdown");
+        const aDown = keys.has("a") || keys.has("arrowleft");
+        const dDown = keys.has("d") || keys.has("arrowright");
+        drawKey("W", hx, hy - sz - gap, wDown);
+        drawKey("A", hx - sz - gap, hy, aDown);
+        drawKey("S", hx, hy, sDown);
+        drawKey("D", hx + sz + gap, hy, dDown);
+        ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
+      }
+
+      // === DRAW CHAT ===
+      const msgs = getChatMessages();
+      if (msgs.length > 0 || chatOpenRef.current) {
         const chatX = 12, chatY = h - 180;
         ctx.font = '13px monospace';
         const visibleMsgs = msgs.slice(-6);

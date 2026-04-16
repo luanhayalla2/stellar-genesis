@@ -1,10 +1,10 @@
 export const NUM_STARS = 500;
 export const SHIP_ACCEL = 0.15;
-export const BOOST_ACCEL = 0.35;
-export const FRICTION = 0.995;
+export const BOOST_ACCEL = 0.30;
+export const FRICTION = 0.985;
 export const ROTATION_SPEED = 0.05;
-export const MAX_SPEED = 6;
-export const MAX_BOOST_SPEED = 12;
+export const MAX_SPEED = 4.5;
+export const MAX_BOOST_SPEED = 8;
 export const LASER_SPEED = 12;
 export const LASER_COOLDOWN = 8;
 export const ASTEROID_SPAWN_DIST = 1200;
