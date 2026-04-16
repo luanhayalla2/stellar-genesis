@@ -203,7 +203,7 @@ const Login = () => {
                     color: "hsl(140, 80%, 75%)",
                   }}
                 >
-                  🎮 Jogar de Graça
+                  🎮 Entrar como Convidado
                 </Button>
                 <span className="absolute -top-2 right-3 text-[9px] font-black tracking-widest px-1.5 py-0.5 rounded-full"
                   style={{ background: "hsl(140,70%,28%)", color: "hsl(140,90%,80%)", border: "1px solid hsl(140,60%,40%)" }}>GRÁTIS</span>
