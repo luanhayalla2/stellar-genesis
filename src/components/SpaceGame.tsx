@@ -294,12 +294,21 @@ const SpaceGame = () => {
         }
       }
     };
-    const onKeyUp = (e: KeyboardEvent) => {
-      keysRef.current.delete(e.key.toLowerCase());
-      if (e.key.toLowerCase() === 'tab') tabPressedRef.current = false;
+    const onKeyUp = (e: KeyboardEvent) => keysRef.current.delete(e.key.toLowerCase());
+    
+    const onMouseMove = (e: MouseEvent) => {
+      mouseRef.current.x = e.clientX;
+      mouseRef.current.y = e.clientY;
+      mouseRef.current.active = true;
     };
+    const onMouseDown = () => { mouseRef.current.down = true; mouseRef.current.active = true; };
+    const onMouseUp = () => mouseRef.current.down = false;
+
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("keyup", onKeyUp);
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mousedown", onMouseDown);
+    window.addEventListener("mouseup", onMouseUp);
 
     let animId: number;
     let prevWaveComplete = false;
@@ -387,16 +396,36 @@ const SpaceGame = () => {
         return;
       }
 
-      // === INPUT (keyboard + touch) ===
-      
+      // === INPUT (keyboard + mouse + touch) ===
       if (isMobile && touch.joystickActive && touch.joystickMagnitude > 0) {
-        // Touch joystick: point ship toward joystick angle, thrust based on magnitude
         const targetAngle = touch.joystickAngle;
         let angleDiff = targetAngle - ship.angle;
         while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
         while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
         ship.angle += Math.sign(angleDiff) * Math.min(Math.abs(angleDiff), ROTATION_SPEED * 2);
         ship.thrust = touch.joystickMagnitude > 0.2;
+      } else if (!isMobile && mouseRef.current.active) {
+        // Mouse controls: Angle points to cursor, movement follows cursor
+        const dx = mouseRef.current.x - w / 2;
+        const dy = mouseRef.current.y - h / 2;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        
+        if (dist > 5) {
+          const targetAngle = Math.atan2(dy, dx);
+          let angleDiff = targetAngle - ship.angle;
+          while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+          while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+          ship.angle += Math.sign(angleDiff) * Math.min(Math.abs(angleDiff), ROTATION_SPEED * 1.5);
+          
+          // Auto-thrust if cursor is far enough
+          ship.thrust = dist > 60 || keys.has("w") || keys.has("arrowup");
+        } else {
+          ship.thrust = keys.has("w") || keys.has("arrowup");
+        }
+        
+        // Horizontal strafing/adjustments still possible via keyboard
+        if (keys.has("a") || keys.has("arrowleft")) ship.vx -= accel * 0.3;
+        if (keys.has("d") || keys.has("arrowright")) ship.vx += accel * 0.3;
       } else {
         if (keys.has("a") || keys.has("arrowleft")) ship.angle -= ROTATION_SPEED;
         if (keys.has("d") || keys.has("arrowright")) ship.angle += ROTATION_SPEED;
@@ -505,7 +534,8 @@ const SpaceGame = () => {
       }
 
       // === SHOOT ===
-      if ((keys.has(" ") || keys.has("enter") || (isMobile && touch.firing)) && cooldownRef.current <= 0) {
+      const firing = keys.has(" ") || keys.has("enter") || (isMobile && touch.firing) || (!isMobile && mouseRef.current.down);
+      if (firing && cooldownRef.current <= 0) {
         cooldownRef.current = LASER_COOLDOWN;
         playLaser();
         const shootLaser = (offsetAngle: number) => {
@@ -937,7 +967,21 @@ const SpaceGame = () => {
       // === DRAW CHAT ===
       const msgs = getChatMessages();
       if (msgs.length > 0 || chatOpenRef.current) {
-        ctx.save();
+        // === DRAW CROSSHAIR ===
+      if (!isMobile && mouseRef.current.active && gs.phase === 'playing') {
+        ctx.strokeStyle = "hsla(180, 100%, 50%, 0.5)";
+        ctx.lineWidth = 1.5;
+        const mx = mouseRef.current.x, my = mouseRef.current.y;
+        ctx.beginPath();
+        ctx.arc(mx, my, 12, 0, Math.PI * 2);
+        ctx.moveTo(mx - 18, my); ctx.lineTo(mx - 6, my);
+        ctx.moveTo(mx + 6, my); ctx.lineTo(mx + 18, my);
+        ctx.moveTo(mx, my - 18); ctx.lineTo(mx, my - 6);
+        ctx.moveTo(mx, my + 6); ctx.lineTo(mx, my + 18);
+        ctx.stroke();
+      }
+
+      ctx.save();
         const chatX = 12, chatY = h - 180;
         ctx.font = '13px monospace';
         const visibleMsgs = msgs.slice(-6);
@@ -976,6 +1020,9 @@ const SpaceGame = () => {
       window.removeEventListener("resize", resize);
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mousedown", onMouseDown);
+      window.removeEventListener("mouseup", onMouseUp);
       if (cleanupTouch) cleanupTouch();
     };
   }, [initStars, spawnParticle, resetGame, saveScore, fetchLeaderboard, spawnBoss, loadUpgrades, saveUpgrades, user]);
