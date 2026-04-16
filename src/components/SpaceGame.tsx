@@ -37,6 +37,7 @@ const SpaceGame = () => {
   const { signOut, user } = useAuth();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const keysRef = useRef<Set<string>>(new Set());
+  const mouseRef = useRef({ x: 0, y: 0, down: false, active: false });
   const upgradesRef = useRef<Upgrades>({ max_hp_bonus: 0, damage_bonus: 0, speed_bonus: 0, shield_duration_bonus: 0, drone_count: 0, score_spent: 0 });
   const shipRef = useRef<Ship>(createShip(upgradesRef.current));
   const starsRef = useRef<Star[]>([]);
@@ -396,6 +397,11 @@ const SpaceGame = () => {
         return;
       }
 
+      // === PHYSICS CONSTANTS (needed by all input branches) ===
+      const speedMul = (ship.speedBoost ? 1.5 : 1) * (1 + upgrades.speed_bonus * 0.15);
+      const accel = (ship.boosting ? BOOST_ACCEL : SHIP_ACCEL) * speedMul;
+      const maxSpd = (ship.boosting ? MAX_BOOST_SPEED : MAX_SPEED) * speedMul;
+
       // === INPUT (keyboard + mouse + touch) ===
       if (isMobile && touch.joystickActive && touch.joystickMagnitude > 0) {
         const targetAngle = touch.joystickAngle;
@@ -405,25 +411,23 @@ const SpaceGame = () => {
         ship.angle += Math.sign(angleDiff) * Math.min(Math.abs(angleDiff), ROTATION_SPEED * 2);
         ship.thrust = touch.joystickMagnitude > 0.2;
       } else if (!isMobile && mouseRef.current.active) {
-        // Mouse controls: Angle points to cursor, movement follows cursor
+        // Mouse controls: Aim at cursor, thrust toward it when far enough
         const dx = mouseRef.current.x - w / 2;
         const dy = mouseRef.current.y - h / 2;
         const dist = Math.sqrt(dx * dx + dy * dy);
-        
-        if (dist > 5) {
+
+        if (dist > 8) {
           const targetAngle = Math.atan2(dy, dx);
           let angleDiff = targetAngle - ship.angle;
           while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
           while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
           ship.angle += Math.sign(angleDiff) * Math.min(Math.abs(angleDiff), ROTATION_SPEED * 1.5);
-          
-          // Auto-thrust if cursor is far enough
+          // Auto-thrust if cursor is far enough from center (ship position)
           ship.thrust = dist > 60 || keys.has("w") || keys.has("arrowup");
         } else {
           ship.thrust = keys.has("w") || keys.has("arrowup");
         }
-        
-        // Horizontal strafing/adjustments still possible via keyboard
+        // Allow keyboard strafing as fine adjustments
         if (keys.has("a") || keys.has("arrowleft")) ship.vx -= accel * 0.3;
         if (keys.has("d") || keys.has("arrowright")) ship.vx += accel * 0.3;
       } else {
@@ -432,10 +436,6 @@ const SpaceGame = () => {
         ship.thrust = keys.has("w") || keys.has("arrowup");
       }
       ship.boosting = keys.has("shift") || (isMobile && touch.boosting);
-
-      const speedMul = (ship.speedBoost ? 1.5 : 1) * (1 + upgrades.speed_bonus * 0.15);
-      const accel = (ship.boosting ? BOOST_ACCEL : SHIP_ACCEL) * speedMul;
-      const maxSpd = (ship.boosting ? MAX_BOOST_SPEED : MAX_SPEED) * speedMul;
 
       if (ship.thrust) {
         ship.vx += Math.cos(ship.angle) * accel;
