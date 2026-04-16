@@ -71,7 +71,7 @@ const SpaceGame = () => {
 
   // Load upgrades from DB
   const loadUpgrades = useCallback(async () => {
-    if (!user) return;
+    if (!user || user.id === 'guest') return;
     const { data } = await supabase.from('user_upgrades').select('*').eq('user_id', user.id).single();
     if (data) {
       upgradesRef.current = {
@@ -93,7 +93,7 @@ const SpaceGame = () => {
   }, [user]);
 
   const saveUpgrades = useCallback(async (upgrades: Upgrades) => {
-    if (!user) return;
+    if (!user || user.id === 'guest') return;
     const { data: existing } = await supabase.from('user_upgrades').select('id').eq('user_id', user.id).single();
     if (existing) {
       await supabase.from('user_upgrades').update({
@@ -113,7 +113,7 @@ const SpaceGame = () => {
   }, [user]);
 
   const saveScore = useCallback(async () => {
-    if (scoreSavedRef.current || !user || scoreRef.current === 0) return;
+    if (scoreSavedRef.current || !user || user.id === 'guest' || scoreRef.current === 0) return;
     scoreSavedRef.current = true;
     const ws = waveStateRef.current;
     await supabase.from('scores').insert({
