@@ -37,7 +37,7 @@ const SpaceGame = () => {
   const { signOut, user } = useAuth();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const keysRef = useRef<Set<string>>(new Set());
-  const upgradesRef = useRef<Upgrades>({ max_hp_bonus: 0, damage_bonus: 0, speed_bonus: 0, shield_duration_bonus: 0, score_spent: 0 });
+  const upgradesRef = useRef<Upgrades>({ max_hp_bonus: 0, damage_bonus: 0, speed_bonus: 0, shield_duration_bonus: 0, drone_count: 0, score_spent: 0 });
   const shipRef = useRef<Ship>(createShip(upgradesRef.current));
   const starsRef = useRef<Star[]>([]);
   const nebulasRef = useRef<Nebula[]>([]);
@@ -79,6 +79,7 @@ const SpaceGame = () => {
         damage_bonus: data.damage_bonus,
         speed_bonus: data.speed_bonus,
         shield_duration_bonus: data.shield_duration_bonus,
+        drone_count: data.drone_count,
         score_spent: data.score_spent,
       };
       shipRef.current.maxHp = SHIP_MAX_HP + data.max_hp_bonus;
@@ -100,6 +101,7 @@ const SpaceGame = () => {
         damage_bonus: upgrades.damage_bonus,
         speed_bonus: upgrades.speed_bonus,
         shield_duration_bonus: upgrades.shield_duration_bonus,
+        drone_count: upgrades.drone_count,
         score_spent: upgrades.score_spent,
       }).eq('user_id', user.id);
     } else {

@@ -15,6 +15,9 @@ Nesta versão mais recente, transformamos o coração do jogo com adições sign
     *   **Buracos Negros**: Obstáculos gravitacionais perigosos e dinâmicos.
 *   **Sistema de Combate**: Melhoria na detecção de colisão, novos disparos e power-ups balanceados.
 *   **Infraestrutura**: Sistema de autenticação (Supabase/OAuth) totalmente corrigido e estabilizado.
+*   **Estabilidade e Evolução**:
+    *   **Correção de Tipagem**: Sistema de upgrades robusto e livre de erros.
+    *   **Sincronização de Dados**: Integração total com o banco de dados Supabase para persistência de progresso.
 *   **Design Responsivo**: Controles mobile aprimorados e interface adaptável.
 
 ## 🎮 Como Jogar
