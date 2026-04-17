@@ -1,7 +1,7 @@
 import { Star, Nebula, Ship, Drone, EnemyShip, BlackHole, Particle, Laser, Asteroid, Explosion, PowerUp, Planet, GameState, Boss, BossLaser, WaveState } from './types';
 import { seededRandom } from './generators';
 import { LANDING_DIST } from './constants';
-import { Upgrades, SHOP_ITEMS, getItemCost, getItemLevel } from './shop';
+import { Upgrades, SHOP_ITEMS, SHIP_MODELS, getItemCost, getItemLevel } from './shop';
 import type { RemotePlayer } from './multiplayer';
 
 export function drawStars(ctx: CanvasRenderingContext2D, stars: Star[], camX: number, camY: number, w: number, h: number, frame: number) {
@@ -720,10 +720,60 @@ export function drawExploration(ctx: CanvasRenderingContext2D, w: number, h: num
     ctx.fillText(maxed ? "✓" : `${cost} pts`, cx + boxW / 2 - 10, y + 2);
   }
 
+  // === SHIPS HANGAR ===
+  const shipsTitleY = itemStartY + SHOP_ITEMS.length * itemH + 20;
+  ctx.textAlign = "center";
+  ctx.fillStyle = "hsla(280, 80%, 70%, 0.9)";
+  ctx.font = "bold 18px monospace";
+  ctx.fillText("🛸 HANGAR DE NAVES", cx, shipsTitleY);
+
+  const shipStartY = shipsTitleY + 25;
+  const shipH = 44;
+  for (let j = 0; j < SHIP_MODELS.length; j++) {
+    const model = SHIP_MODELS[j];
+    const owned = upgrades.ships_owned.includes(model.id);
+    const equipped = upgrades.ship_skin === model.id;
+    const canBuy = !owned && availableScore >= model.cost;
+    const y = shipStartY + j * shipH;
+    const idx = SHOP_ITEMS.length + j;
+    const isSelected = idx === selectedItem;
+
+    const boxW = 460;
+    ctx.fillStyle = isSelected ? "hsla(280, 40%, 22%, 0.7)" : "hsla(280, 20%, 12%, 0.4)";
+    ctx.fillRect(cx - boxW / 2, y - 16, boxW, shipH - 4);
+    if (isSelected) {
+      ctx.strokeStyle = `hsla(${model.color}, 0.9)`;
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(cx - boxW / 2, y - 16, boxW, shipH - 4);
+    }
+
+    ctx.textAlign = "left";
+    ctx.font = "14px monospace";
+    ctx.fillStyle = equipped ? "hsla(140, 70%, 65%, 0.95)" : owned ? `hsla(${model.color}, 0.9)` : canBuy ? "hsla(50, 80%, 70%, 0.9)" : "hsla(0, 30%, 55%, 0.7)";
+    ctx.fillText(`${model.icon} ${model.name}`, cx - boxW / 2 + 10, y + 2);
+
+    ctx.font = "11px monospace";
+    ctx.fillStyle = "hsla(200, 40%, 60%, 0.7)";
+    ctx.fillText(model.description, cx - boxW / 2 + 10, y + 18);
+
+    ctx.textAlign = "right";
+    ctx.font = "13px monospace";
+    if (equipped) {
+      ctx.fillStyle = "hsla(140, 70%, 65%, 0.95)";
+      ctx.fillText("EQUIPADA", cx + boxW / 2 - 10, y + 2);
+    } else if (owned) {
+      ctx.fillStyle = "hsla(200, 60%, 70%, 0.85)";
+      ctx.fillText("Equipar (ENTER)", cx + boxW / 2 - 10, y + 2);
+    } else {
+      ctx.fillStyle = canBuy ? "hsla(50, 80%, 65%, 0.9)" : "hsla(0, 50%, 50%, 0.7)";
+      ctx.fillText(`${model.cost} pts`, cx + boxW / 2 - 10, y + 2);
+    }
+  }
+
   ctx.textAlign = "center";
   ctx.fillStyle = "hsla(200, 40%, 60%, 0.5)";
   ctx.font = "12px monospace";
-  ctx.fillText("↑↓ selecionar · ENTER comprar · ESC decolar", cx, itemStartY + SHOP_ITEMS.length * itemH + 20);
+  ctx.fillText("↑↓ selecionar · ENTER comprar/equipar · ESC decolar", cx, shipStartY + SHIP_MODELS.length * shipH + 20);
   ctx.textAlign = "left";
 }
 
