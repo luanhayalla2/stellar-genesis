@@ -45,7 +45,6 @@ export type Database = {
         Row: {
           created_at: string
           damage_bonus: number
-          drone_count: number
           id: string
           max_hp_bonus: number
           score_spent: number
@@ -57,7 +56,6 @@ export type Database = {
         Insert: {
           created_at?: string
           damage_bonus?: number
-          drone_count?: number
           id?: string
           max_hp_bonus?: number
           score_spent?: number
@@ -69,7 +67,6 @@ export type Database = {
         Update: {
           created_at?: string
           damage_bonus?: number
-          drone_count?: number
           id?: string
           max_hp_bonus?: number
           score_spent?: number
