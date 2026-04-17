@@ -433,7 +433,8 @@ const SpaceGame = () => {
       }
 
       // === PHYSICS CONSTANTS ===
-      const speedMul = (ship.speedBoost ? 1.5 : 1) * (1 + upgrades.speed_bonus * 0.15);
+      const equippedShip = getEquippedShip(upgrades);
+      const speedMul = (ship.speedBoost ? 1.5 : 1) * (1 + upgrades.speed_bonus * 0.15 + equippedShip.bonusSpeed);
       const accel = (ship.boosting ? BOOST_ACCEL : SHIP_ACCEL) * speedMul;
       const maxSpd = (ship.boosting ? MAX_BOOST_SPEED : MAX_SPEED) * speedMul;
       ship.boosting = keys.has("shift") || (isMobile && touch.boosting);
@@ -727,7 +728,7 @@ const SpaceGame = () => {
         }
 
         // Laser-boss collision
-        const dmg = 1 + upgrades.damage_bonus;
+        const dmg = 1 + upgrades.damage_bonus + equippedShip.bonusDamage;
         for (let li = lasersRef.current.length - 1; li >= 0; li--) {
           const l = lasersRef.current[li];
           const dx = l.x - boss.x, dy = l.y - boss.y;
@@ -797,7 +798,7 @@ const SpaceGame = () => {
           const l = lasersRef.current[li];
           const ldist = Math.sqrt((l.x - e.x) ** 2 + (l.y - e.y) ** 2);
           if (ldist < 18) {
-            e.hp -= (1 + upgrades.damage_bonus);
+            e.hp -= (1 + upgrades.damage_bonus + equippedShip.bonusDamage);
             lasersRef.current.splice(li, 1);
             if (e.hp <= 0) {
               scoreRef.current += 150 + ws.wave * 20;
@@ -895,7 +896,7 @@ const SpaceGame = () => {
       }
 
       // === LASER-ASTEROID COLLISION ===
-      const dmg = 1 + upgrades.damage_bonus;
+      const dmg = 1 + upgrades.damage_bonus + equippedShip.bonusDamage;
       for (let li = lasersRef.current.length - 1; li >= 0; li--) {
         const l = lasersRef.current[li];
         for (let ai = asteroidsRef.current.length - 1; ai >= 0; ai--) {
@@ -1004,7 +1005,7 @@ const SpaceGame = () => {
       if (bossRef.current && bossRef.current.hp > 0) {
         drawBoss(ctx, bossRef.current, camX, camY, frameRef.current);
       }
-      drawShip(ctx, ship, w, h);
+      drawShip(ctx, ship, w, h, equippedShip.color);
       drawHUD(ctx, ship, scoreRef.current, w, h, planetsRef.current, gameStateRef.current, waveStateRef.current, getRemotePlayers().length);
 
       // === DRAW TOUCH CONTROLS ===
