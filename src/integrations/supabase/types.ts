@@ -50,6 +50,8 @@ export type Database = {
           max_hp_bonus: number
           score_spent: number
           shield_duration_bonus: number
+          ship_skin: string
+          ships_owned: string[]
           speed_bonus: number
           updated_at: string
           user_id: string
@@ -62,6 +64,8 @@ export type Database = {
           max_hp_bonus?: number
           score_spent?: number
           shield_duration_bonus?: number
+          ship_skin?: string
+          ships_owned?: string[]
           speed_bonus?: number
           updated_at?: string
           user_id: string
@@ -74,6 +78,8 @@ export type Database = {
           max_hp_bonus?: number
           score_spent?: number
           shield_duration_bonus?: number
+          ship_skin?: string
+          ships_owned?: string[]
           speed_bonus?: number
           updated_at?: string
           user_id?: string
