@@ -6,20 +6,24 @@ import { NUM_STARS, SHIP_ACCEL, BOOST_ACCEL, FRICTION, ROTATION_SPEED, MAX_SPEED
 import { generatePlanets, generateAsteroidShape, generateNebulas, generateBlackHoles } from './space-game/generators';
 import { drawStars, drawNebulas, drawBlackHoles, drawPlanets, drawAsteroids, drawEnemyShips, drawDrones, drawExplosions, drawLasers, drawParticles, drawPowerUps, drawShip, drawHUD, drawGameOver, drawExploration, drawBoss, drawBossLasers, drawLeaderboard, drawRemotePlayers, LeaderboardEntry } from './space-game/renderer';
 import { playLaser, playExplosion, playCollision, playBossHit, playPowerUp, playBossAppear, playWaveComplete, playShieldHit } from './space-game/audio';
-import { Upgrades, SHOP_ITEMS, getItemCost, getItemLevel } from './space-game/shop';
+import { Upgrades, SHOP_ITEMS, SHIP_MODELS, getItemCost, getItemLevel, getEquippedShip } from './space-game/shop';
 import { initMultiplayer, broadcastState, cleanupMultiplayer, getRemotePlayers, sendChatMessage, getChatMessages, setOnChat } from './space-game/multiplayer';
 import { startMusic, stopMusic, setMusicIntensity, updateMusic, isMusicPlaying } from './space-game/music';
 import { initTouchControls, getTouchState, isTouchDevice, setupButtonZones, drawTouchControls } from './space-game/touch-controls';
 
-const createShip = (upgrades: Upgrades): Ship => ({
-  x: 0, y: 0, angle: -Math.PI / 2, vx: 0, vy: 0,
-  thrust: false, boosting: false,
-  hp: SHIP_MAX_HP + upgrades.max_hp_bonus, maxHp: SHIP_MAX_HP + upgrades.max_hp_bonus,
-  shield: false, shieldTimer: 0,
-  doubleShot: false, doubleShotTimer: 0,
-  speedBoost: false, speedBoostTimer: 0,
-  invincible: 0,
-});
+const createShip = (upgrades: Upgrades): Ship => {
+  const ship = getEquippedShip(upgrades);
+  const maxHp = SHIP_MAX_HP + upgrades.max_hp_bonus + ship.bonusHp;
+  return {
+    x: 0, y: 0, angle: -Math.PI / 2, vx: 0, vy: 0,
+    thrust: false, boosting: false,
+    hp: maxHp, maxHp,
+    shield: false, shieldTimer: 0,
+    doubleShot: false, doubleShotTimer: 0,
+    speedBoost: false, speedBoostTimer: 0,
+    invincible: 0,
+  };
+};
 
 const createWaveState = (): WaveState => ({
   wave: 1,
