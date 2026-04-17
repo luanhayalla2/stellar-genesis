@@ -377,7 +377,7 @@ const SpaceGame = () => {
           keys.delete("arrowup"); keys.delete("w");
         }
         if (keys.has("arrowdown") || keys.has("s")) {
-          shopSelectionRef.current = Math.min(SHOP_ITEMS.length - 1, shopSelectionRef.current + 1);
+          shopSelectionRef.current = Math.min(SHOP_ITEMS.length + SHIP_MODELS.length - 1, shopSelectionRef.current + 1);
           keys.delete("arrowdown"); keys.delete("s");
         }
         if (keys.has("enter") || keys.has(" ")) {
