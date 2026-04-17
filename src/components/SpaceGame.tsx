@@ -6,20 +6,24 @@ import { NUM_STARS, SHIP_ACCEL, BOOST_ACCEL, FRICTION, ROTATION_SPEED, MAX_SPEED
 import { generatePlanets, generateAsteroidShape, generateNebulas, generateBlackHoles } from './space-game/generators';
 import { drawStars, drawNebulas, drawBlackHoles, drawPlanets, drawAsteroids, drawEnemyShips, drawDrones, drawExplosions, drawLasers, drawParticles, drawPowerUps, drawShip, drawHUD, drawGameOver, drawExploration, drawBoss, drawBossLasers, drawLeaderboard, drawRemotePlayers, LeaderboardEntry } from './space-game/renderer';
 import { playLaser, playExplosion, playCollision, playBossHit, playPowerUp, playBossAppear, playWaveComplete, playShieldHit } from './space-game/audio';
-import { Upgrades, SHOP_ITEMS, getItemCost, getItemLevel } from './space-game/shop';
+import { Upgrades, SHOP_ITEMS, SHIP_MODELS, getItemCost, getItemLevel, getEquippedShip } from './space-game/shop';
 import { initMultiplayer, broadcastState, cleanupMultiplayer, getRemotePlayers, sendChatMessage, getChatMessages, setOnChat } from './space-game/multiplayer';
 import { startMusic, stopMusic, setMusicIntensity, updateMusic, isMusicPlaying } from './space-game/music';
 import { initTouchControls, getTouchState, isTouchDevice, setupButtonZones, drawTouchControls } from './space-game/touch-controls';
 
-const createShip = (upgrades: Upgrades): Ship => ({
-  x: 0, y: 0, angle: -Math.PI / 2, vx: 0, vy: 0,
-  thrust: false, boosting: false,
-  hp: SHIP_MAX_HP + upgrades.max_hp_bonus, maxHp: SHIP_MAX_HP + upgrades.max_hp_bonus,
-  shield: false, shieldTimer: 0,
-  doubleShot: false, doubleShotTimer: 0,
-  speedBoost: false, speedBoostTimer: 0,
-  invincible: 0,
-});
+const createShip = (upgrades: Upgrades): Ship => {
+  const ship = getEquippedShip(upgrades);
+  const maxHp = SHIP_MAX_HP + upgrades.max_hp_bonus + ship.bonusHp;
+  return {
+    x: 0, y: 0, angle: -Math.PI / 2, vx: 0, vy: 0,
+    thrust: false, boosting: false,
+    hp: maxHp, maxHp,
+    shield: false, shieldTimer: 0,
+    doubleShot: false, doubleShotTimer: 0,
+    speedBoost: false, speedBoostTimer: 0,
+    invincible: 0,
+  };
+};
 
 const createWaveState = (): WaveState => ({
   wave: 1,
@@ -38,7 +42,7 @@ const SpaceGame = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const keysRef = useRef<Set<string>>(new Set());
   const mouseRef = useRef({ x: 0, y: 0, down: false, active: false });
-  const upgradesRef = useRef<Upgrades>({ max_hp_bonus: 0, damage_bonus: 0, speed_bonus: 0, shield_duration_bonus: 0, drone_count: 0, score_spent: 0 });
+  const upgradesRef = useRef<Upgrades>({ max_hp_bonus: 0, damage_bonus: 0, speed_bonus: 0, shield_duration_bonus: 0, drone_count: 0, score_spent: 0, ship_skin: 'default', ships_owned: ['default'] });
   const shipRef = useRef<Ship>(createShip(upgradesRef.current));
   const starsRef = useRef<Star[]>([]);
   const nebulasRef = useRef<Nebula[]>([]);
@@ -82,8 +86,11 @@ const SpaceGame = () => {
         shield_duration_bonus: data.shield_duration_bonus,
         drone_count: data.drone_count,
         score_spent: data.score_spent,
+        ship_skin: (data as any).ship_skin ?? 'default',
+        ships_owned: (data as any).ships_owned ?? ['default'],
       };
-      shipRef.current.maxHp = SHIP_MAX_HP + data.max_hp_bonus;
+      const equippedShip = getEquippedShip(upgradesRef.current);
+      shipRef.current.maxHp = SHIP_MAX_HP + data.max_hp_bonus + equippedShip.bonusHp;
       shipRef.current.hp = shipRef.current.maxHp;
     }
     // Load total score earned
@@ -104,7 +111,9 @@ const SpaceGame = () => {
         shield_duration_bonus: upgrades.shield_duration_bonus,
         drone_count: upgrades.drone_count,
         score_spent: upgrades.score_spent,
-      }).eq('user_id', user.id);
+        ship_skin: upgrades.ship_skin,
+        ships_owned: upgrades.ships_owned,
+      } as any).eq('user_id', user.id);
     } else {
       await supabase.from('user_upgrades').insert({
         user_id: user.id,
@@ -368,20 +377,46 @@ const SpaceGame = () => {
           keys.delete("arrowup"); keys.delete("w");
         }
         if (keys.has("arrowdown") || keys.has("s")) {
-          shopSelectionRef.current = Math.min(SHOP_ITEMS.length - 1, shopSelectionRef.current + 1);
+          shopSelectionRef.current = Math.min(SHOP_ITEMS.length + SHIP_MODELS.length - 1, shopSelectionRef.current + 1);
           keys.delete("arrowdown"); keys.delete("s");
         }
         if (keys.has("enter") || keys.has(" ")) {
           keys.delete("enter"); keys.delete(" ");
-          const item = SHOP_ITEMS[shopSelectionRef.current];
-          const level = getItemLevel(upgrades, item);
-          if (level < item.maxLevel) {
-            const cost = getItemCost(item, level);
-            if (availableScore >= cost) {
-              upgrades[item.field]++;
-              upgrades.score_spent += cost;
-              // Apply immediately
-              ship.maxHp = SHIP_MAX_HP + upgrades.max_hp_bonus;
+          const totalItems = SHOP_ITEMS.length + SHIP_MODELS.length;
+          const sel = shopSelectionRef.current;
+          if (sel < SHOP_ITEMS.length) {
+            // Buy upgrade
+            const item = SHOP_ITEMS[sel];
+            const level = getItemLevel(upgrades, item);
+            if (level < item.maxLevel) {
+              const cost = getItemCost(item, level);
+              if (availableScore >= cost) {
+                upgrades[item.field]++;
+                upgrades.score_spent += cost;
+                const eqShip = getEquippedShip(upgrades);
+                ship.maxHp = SHIP_MAX_HP + upgrades.max_hp_bonus + eqShip.bonusHp;
+                ship.hp = ship.maxHp;
+                saveUpgrades(upgrades);
+                playPowerUp();
+              }
+            }
+          } else {
+            // Buy or equip ship
+            const model = SHIP_MODELS[sel - SHOP_ITEMS.length];
+            const owned = upgrades.ships_owned.includes(model.id);
+            if (!owned) {
+              if (availableScore >= model.cost) {
+                upgrades.ships_owned = [...upgrades.ships_owned, model.id];
+                upgrades.score_spent += model.cost;
+                upgrades.ship_skin = model.id;
+                ship.maxHp = SHIP_MAX_HP + upgrades.max_hp_bonus + model.bonusHp;
+                ship.hp = ship.maxHp;
+                saveUpgrades(upgrades);
+                playPowerUp();
+              }
+            } else if (upgrades.ship_skin !== model.id) {
+              upgrades.ship_skin = model.id;
+              ship.maxHp = SHIP_MAX_HP + upgrades.max_hp_bonus + model.bonusHp;
               ship.hp = ship.maxHp;
               saveUpgrades(upgrades);
               playPowerUp();
@@ -398,7 +433,8 @@ const SpaceGame = () => {
       }
 
       // === PHYSICS CONSTANTS ===
-      const speedMul = (ship.speedBoost ? 1.5 : 1) * (1 + upgrades.speed_bonus * 0.15);
+      const equippedShip = getEquippedShip(upgrades);
+      const speedMul = (ship.speedBoost ? 1.5 : 1) * (1 + upgrades.speed_bonus * 0.15 + equippedShip.bonusSpeed);
       const accel = (ship.boosting ? BOOST_ACCEL : SHIP_ACCEL) * speedMul;
       const maxSpd = (ship.boosting ? MAX_BOOST_SPEED : MAX_SPEED) * speedMul;
       ship.boosting = keys.has("shift") || (isMobile && touch.boosting);
@@ -692,7 +728,7 @@ const SpaceGame = () => {
         }
 
         // Laser-boss collision
-        const dmg = 1 + upgrades.damage_bonus;
+        const dmg = 1 + upgrades.damage_bonus + equippedShip.bonusDamage;
         for (let li = lasersRef.current.length - 1; li >= 0; li--) {
           const l = lasersRef.current[li];
           const dx = l.x - boss.x, dy = l.y - boss.y;
@@ -762,7 +798,7 @@ const SpaceGame = () => {
           const l = lasersRef.current[li];
           const ldist = Math.sqrt((l.x - e.x) ** 2 + (l.y - e.y) ** 2);
           if (ldist < 18) {
-            e.hp -= (1 + upgrades.damage_bonus);
+            e.hp -= (1 + upgrades.damage_bonus + equippedShip.bonusDamage);
             lasersRef.current.splice(li, 1);
             if (e.hp <= 0) {
               scoreRef.current += 150 + ws.wave * 20;
@@ -860,7 +896,7 @@ const SpaceGame = () => {
       }
 
       // === LASER-ASTEROID COLLISION ===
-      const dmg = 1 + upgrades.damage_bonus;
+      const dmg = 1 + upgrades.damage_bonus + equippedShip.bonusDamage;
       for (let li = lasersRef.current.length - 1; li >= 0; li--) {
         const l = lasersRef.current[li];
         for (let ai = asteroidsRef.current.length - 1; ai >= 0; ai--) {
@@ -969,7 +1005,7 @@ const SpaceGame = () => {
       if (bossRef.current && bossRef.current.hp > 0) {
         drawBoss(ctx, bossRef.current, camX, camY, frameRef.current);
       }
-      drawShip(ctx, ship, w, h);
+      drawShip(ctx, ship, w, h, equippedShip.color);
       drawHUD(ctx, ship, scoreRef.current, w, h, planetsRef.current, gameStateRef.current, waveStateRef.current, getRemotePlayers().length);
 
       // === DRAW TOUCH CONTROLS ===
