@@ -394,7 +394,7 @@ export function drawDrones(ctx: CanvasRenderingContext2D, drones: Drone[], camX:
   }
 }
 
-export function drawShip(ctx: CanvasRenderingContext2D, ship: Ship, w: number, h: number) {
+export function drawShip(ctx: CanvasRenderingContext2D, ship: Ship, w: number, h: number, hullColor: string = "200 85% 55%") {
   const sx = w / 2, sy = h / 2;
   if (ship.invincible > 0 && Math.floor(ship.invincible / 4) % 2 === 0) return;
   ctx.save();
@@ -442,8 +442,8 @@ export function drawShip(ctx: CanvasRenderingContext2D, ship: Ship, w: number, h
     ctx.stroke();
   }
   const shipGlow = ctx.createRadialGradient(0, 0, 5, 0, 0, 30);
-  shipGlow.addColorStop(0, "hsla(200, 85%, 55%, 0.15)");
-  shipGlow.addColorStop(1, "hsla(200, 85%, 55%, 0)");
+  shipGlow.addColorStop(0, `hsla(${hullColor}, 0.18)`);
+  shipGlow.addColorStop(1, `hsla(${hullColor}, 0)`);
   ctx.fillStyle = shipGlow;
   ctx.fillRect(-30, -30, 60, 60);
   ctx.beginPath();
@@ -456,12 +456,12 @@ export function drawShip(ctx: CanvasRenderingContext2D, ship: Ship, w: number, h
   ctx.closePath();
   ctx.fillStyle = "hsl(210, 30%, 20%)";
   ctx.fill();
-  ctx.strokeStyle = "hsl(200, 85%, 55%)";
+  ctx.strokeStyle = `hsl(${hullColor})`;
   ctx.lineWidth = 1.5;
   ctx.stroke();
   ctx.beginPath();
   ctx.arc(0, -4, 3, 0, Math.PI * 2);
-  ctx.fillStyle = "hsl(170, 70%, 45%)";
+  ctx.fillStyle = `hsl(${hullColor})`;
   ctx.fill();
   ctx.restore();
 }
