@@ -89,7 +89,8 @@ const SpaceGame = () => {
         ship_skin: (data as any).ship_skin ?? 'default',
         ships_owned: (data as any).ships_owned ?? ['default'],
       };
-      shipRef.current.maxHp = SHIP_MAX_HP + data.max_hp_bonus;
+      const equippedShip = getEquippedShip(upgradesRef.current);
+      shipRef.current.maxHp = SHIP_MAX_HP + data.max_hp_bonus + equippedShip.bonusHp;
       shipRef.current.hp = shipRef.current.maxHp;
     }
     // Load total score earned
@@ -381,15 +382,41 @@ const SpaceGame = () => {
         }
         if (keys.has("enter") || keys.has(" ")) {
           keys.delete("enter"); keys.delete(" ");
-          const item = SHOP_ITEMS[shopSelectionRef.current];
-          const level = getItemLevel(upgrades, item);
-          if (level < item.maxLevel) {
-            const cost = getItemCost(item, level);
-            if (availableScore >= cost) {
-              upgrades[item.field]++;
-              upgrades.score_spent += cost;
-              // Apply immediately
-              ship.maxHp = SHIP_MAX_HP + upgrades.max_hp_bonus;
+          const totalItems = SHOP_ITEMS.length + SHIP_MODELS.length;
+          const sel = shopSelectionRef.current;
+          if (sel < SHOP_ITEMS.length) {
+            // Buy upgrade
+            const item = SHOP_ITEMS[sel];
+            const level = getItemLevel(upgrades, item);
+            if (level < item.maxLevel) {
+              const cost = getItemCost(item, level);
+              if (availableScore >= cost) {
+                upgrades[item.field]++;
+                upgrades.score_spent += cost;
+                const eqShip = getEquippedShip(upgrades);
+                ship.maxHp = SHIP_MAX_HP + upgrades.max_hp_bonus + eqShip.bonusHp;
+                ship.hp = ship.maxHp;
+                saveUpgrades(upgrades);
+                playPowerUp();
+              }
+            }
+          } else {
+            // Buy or equip ship
+            const model = SHIP_MODELS[sel - SHOP_ITEMS.length];
+            const owned = upgrades.ships_owned.includes(model.id);
+            if (!owned) {
+              if (availableScore >= model.cost) {
+                upgrades.ships_owned = [...upgrades.ships_owned, model.id];
+                upgrades.score_spent += model.cost;
+                upgrades.ship_skin = model.id;
+                ship.maxHp = SHIP_MAX_HP + upgrades.max_hp_bonus + model.bonusHp;
+                ship.hp = ship.maxHp;
+                saveUpgrades(upgrades);
+                playPowerUp();
+              }
+            } else if (upgrades.ship_skin !== model.id) {
+              upgrades.ship_skin = model.id;
+              ship.maxHp = SHIP_MAX_HP + upgrades.max_hp_bonus + model.bonusHp;
               ship.hp = ship.maxHp;
               saveUpgrades(upgrades);
               playPowerUp();
