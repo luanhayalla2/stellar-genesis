@@ -38,7 +38,7 @@ const SpaceGame = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const keysRef = useRef<Set<string>>(new Set());
   const mouseRef = useRef({ x: 0, y: 0, down: false, active: false });
-  const upgradesRef = useRef<Upgrades>({ max_hp_bonus: 0, damage_bonus: 0, speed_bonus: 0, shield_duration_bonus: 0, drone_count: 0, score_spent: 0 });
+  const upgradesRef = useRef<Upgrades>({ max_hp_bonus: 0, damage_bonus: 0, speed_bonus: 0, shield_duration_bonus: 0, drone_count: 0, score_spent: 0, ship_skin: 'default', ships_owned: ['default'] });
   const shipRef = useRef<Ship>(createShip(upgradesRef.current));
   const starsRef = useRef<Star[]>([]);
   const nebulasRef = useRef<Nebula[]>([]);
@@ -82,6 +82,8 @@ const SpaceGame = () => {
         shield_duration_bonus: data.shield_duration_bonus,
         drone_count: data.drone_count,
         score_spent: data.score_spent,
+        ship_skin: (data as any).ship_skin ?? 'default',
+        ships_owned: (data as any).ships_owned ?? ['default'],
       };
       shipRef.current.maxHp = SHIP_MAX_HP + data.max_hp_bonus;
       shipRef.current.hp = shipRef.current.maxHp;
@@ -104,7 +106,9 @@ const SpaceGame = () => {
         shield_duration_bonus: upgrades.shield_duration_bonus,
         drone_count: upgrades.drone_count,
         score_spent: upgrades.score_spent,
-      }).eq('user_id', user.id);
+        ship_skin: upgrades.ship_skin,
+        ships_owned: upgrades.ships_owned,
+      } as any).eq('user_id', user.id);
     } else {
       await supabase.from('user_upgrades').insert({
         user_id: user.id,
