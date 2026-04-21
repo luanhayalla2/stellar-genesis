@@ -1,14 +1,13 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { lovable } from "@/integrations/lovable/index";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Rocket, Loader2, Infinity, Eye, EyeOff, CheckCircle2, ShieldCheck, Zap, Info } from "lucide-react";
+import { Rocket, Loader2, Infinity as InfinityIcon, Eye, EyeOff, ShieldCheck, Info } from "lucide-react";
 import { toast } from "sonner";
-import { useAuth } from "@/contexts/AuthContext";
 
 const Register = () => {
   const [email, setEmail] = useState("");
@@ -21,6 +20,16 @@ const Register = () => {
   const navigate = useNavigate();
   const { loginAsGuest } = useAuth();
 
+  const passwordStrength = (() => {
+    if (!password) return 0;
+    let score = 0;
+    if (password.length >= 8) score++;
+    if (/[A-Z]/.test(password)) score++;
+    if (/[0-9]/.test(password)) score++;
+    if (/[^A-Za-z0-9]/.test(password)) score++;
+    return score;
+  })();
+
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim() || !password || !confirmPassword) {
@@ -31,19 +40,11 @@ const Register = () => {
       toast.error("A senha deve ter pelo menos 6 caracteres");
       return;
     }
-    
-    // Basic client-side weak password pattern check
-    // Relaxed to only block extremely obvious ones
-    const weakPatterns = ["123456", "password", "senha123"];
-    if (weakPatterns.some(pattern => password.toLowerCase().includes(pattern))) {
-      toast.error("Senha muito óbvia. Para sua segurança, use uma combinação menos comum.");
-      return;
-    }
-
     if (password !== confirmPassword) {
       toast.error("As senhas não coincidem");
       return;
     }
+
     setLoading(true);
     const { error } = await supabase.auth.signUp({
       email: email.trim(),
@@ -51,30 +52,29 @@ const Register = () => {
       options: { emailRedirectTo: window.location.origin },
     });
     setLoading(false);
+
     if (error) {
-      console.error("Erro no registro:", error);
-      if (error.status === 422) {
-        if (error.message.toLowerCase().includes("weak")) {
-          toast.error("Sua senha é considerada frágil pelo sistema. Use uma mistura de letras, números e símbolos.");
-        } else {
-          toast.error("Este email já está em uso ou o cadastro não é permitido agora.");
-        }
+      const msg = error.message.toLowerCase();
+      if (msg.includes("already") || msg.includes("registered")) {
+        toast.error("Este email já está cadastrado. Tente entrar.");
+      } else if (msg.includes("weak") || msg.includes("password")) {
+        toast.error("Senha fraca. Use letras, números e símbolos.");
       } else if (error.status === 429) {
-        toast.error("Muitas tentativas de cadastro. Aguarde um pouco.");
+        toast.error("Muitas tentativas. Aguarde alguns minutos.");
       } else {
-        toast.error(error.message || "Ocorreu um erro ao criar sua conta.");
+        toast.error(error.message || "Erro ao criar conta");
       }
-    } else {
-      setSuccess(true);
-      toast.success("Conta criada com sucesso!");
+      return;
     }
+
+    setSuccess(true);
+    toast.success("Conta criada! Verifique seu email.");
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4 relative overflow-hidden">
-      {/* Animated star field */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        {Array.from({ length: 80 }).map((_, i) => (
+        {Array.from({ length: 60 }).map((_, i) => (
           <div
             key={i}
             className="absolute rounded-full"
@@ -89,44 +89,56 @@ const Register = () => {
             }}
           />
         ))}
-        {/* Nebula glow blobs */}
-        <div className="absolute top-1/3 right-1/4 w-96 h-96 rounded-full opacity-10"
-          style={{ background: "radial-gradient(circle, hsl(260, 60%, 55%), transparent 70%)", filter: "blur(60px)" }} />
-        <div className="absolute bottom-1/3 left-1/4 w-80 h-80 rounded-full opacity-10"
-          style={{ background: "radial-gradient(circle, hsl(170, 70%, 45%), transparent 70%)", filter: "blur(50px)" }} />
+        <div
+          className="absolute top-1/3 right-1/4 w-96 h-96 rounded-full opacity-10"
+          style={{ background: "radial-gradient(circle, hsl(260,60%,55%), transparent 70%)", filter: "blur(60px)" }}
+        />
       </div>
 
       <div className="relative z-10 w-full max-w-md flex flex-col items-center gap-6">
-        {/* App Brand Header */}
         <div className="text-center flex flex-col items-center gap-2">
-          <div className="flex items-center justify-center w-16 h-16 rounded-full border border-secondary/30 mb-1"
-            style={{ background: "radial-gradient(circle at 40% 40%, hsl(260,60%,30%), hsl(240,20%,8%))", boxShadow: "0 0 32px hsl(260 60% 55% / 0.35)" }}>
-            <Infinity className="h-8 w-8 text-secondary drop-shadow-lg" />
+          <div
+            className="flex items-center justify-center w-16 h-16 rounded-full border border-secondary/30"
+            style={{
+              background: "radial-gradient(circle at 40% 40%, hsl(260,60%,30%), hsl(240,20%,8%))",
+              boxShadow: "0 0 32px hsl(260 60% 55% / 0.35)",
+            }}
+          >
+            <InfinityIcon className="h-8 w-8 text-secondary drop-shadow-lg" />
           </div>
-          <h1 className="text-2xl font-bold tracking-widest"
-            style={{ background: "linear-gradient(135deg, hsl(260,60%,70%), hsl(170,70%,55%), hsl(200,85%,70%))", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+          <h1
+            className="text-2xl font-bold tracking-widest"
+            style={{
+              background: "linear-gradient(135deg, hsl(260,60%,70%), hsl(170,70%,55%), hsl(200,85%,70%))",
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+            }}
+          >
             AppInfinity Galaxy
           </h1>
           <p className="text-xs tracking-widest text-muted-foreground uppercase">Inicie sua jornada cósmica</p>
         </div>
 
-        {/* Register Card */}
-        <Card className="w-full border-border/40 relative"
-          style={{ background: "linear-gradient(135deg, hsl(240,20%,7%), hsl(240,15%,10%))", boxShadow: "0 0 40px hsl(260 60% 55% / 0.12), 0 4px 40px rgba(0,0,0,0.5)", backdropFilter: "blur(20px)" }}>
+        <Card
+          className="w-full border-border/40"
+          style={{
+            background: "linear-gradient(135deg, hsl(240,20%,7%), hsl(240,15%,10%))",
+            boxShadow: "0 0 40px hsl(260 60% 55% / 0.12), 0 4px 40px rgba(0,0,0,0.5)",
+            backdropFilter: "blur(20px)",
+          }}
+        >
           <CardHeader className="text-center pb-2">
             <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-secondary/10 border border-secondary/20">
               <Rocket className="h-5 w-5 text-secondary" />
             </div>
             <CardTitle className="text-xl text-foreground">
-              {success ? "Verifique seu E-mail" : "Criar Conta"}
+              {success ? "Verifique seu email" : "Criar Conta"}
             </CardTitle>
             <CardDescription className="text-muted-foreground">
-              {success 
-                ? "Quase lá! Enviamos um link de confirmação." 
-                : "Registre-se para pilotar sua nave"}
+              {success ? "Enviamos um link de confirmação" : "Registre-se para pilotar sua nave"}
             </CardDescription>
           </CardHeader>
-          
+
           {success ? (
             <CardContent className="space-y-6 pt-4 pb-8 text-center">
               <div className="flex justify-center">
@@ -136,17 +148,21 @@ const Register = () => {
               </div>
               <div className="space-y-3">
                 <p className="text-sm text-foreground/90 leading-relaxed">
-                  Para sua segurança, precisamos que você confirme seu endereço de e-mail 
-                  <span className="text-secondary font-medium px-1">{email}</span>.
+                  Confirme seu endereço{" "}
+                  <span className="text-secondary font-medium">{email}</span> clicando no link do email.
                 </p>
                 <div className="bg-secondary/5 p-4 rounded-lg border border-secondary/10 flex items-start gap-3 text-left">
                   <Info className="h-5 w-5 text-secondary shrink-0 mt-0.5" />
                   <p className="text-xs text-muted-foreground leading-normal">
-                    Se não encontrar o e-mail, verifique sua pasta de spans ou aguarde alguns minutos.
+                    Não encontrou? Verifique a pasta de spam ou aguarde alguns minutos.
                   </p>
                 </div>
               </div>
-              <Button onClick={() => navigate("/login")} variant="outline" className="w-full border-secondary/30 text-secondary hover:bg-secondary/10">
+              <Button
+                onClick={() => navigate("/login")}
+                variant="outline"
+                className="w-full border-secondary/30 text-secondary hover:bg-secondary/10"
+              >
                 Ir para o Login
               </Button>
             </CardContent>
@@ -155,104 +171,120 @@ const Register = () => {
               <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="reg-email" className="text-foreground/80 text-sm">Email</Label>
-                  <Input id="reg-email" type="email" placeholder="piloto@espaco.com" value={email} onChange={(e) => setEmail(e.target.value)}
-                    className="border-border/50 focus:border-secondary/60 transition-colors"
-                    style={{ background: "hsl(240,20%,6%)" }} />
+                  <Input
+                    id="reg-email"
+                    type="email"
+                    autoComplete="email"
+                    placeholder="piloto@espaco.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="border-border/50 focus:border-secondary/60"
+                    style={{ background: "hsl(240,20%,6%)" }}
+                  />
                 </div>
+
                 <div className="space-y-2">
-                  <Label htmlFor="reg-password" className="text-foreground/80 text-sm flex justify-between">
-                    Senha
-                    <span className="text-[10px] text-muted-foreground flex items-center gap-1">
-                      <Zap className="h-2.5 w-2.5" /> Forte recomendada
-                    </span>
-                  </Label>
+                  <Label htmlFor="reg-password" className="text-foreground/80 text-sm">Senha</Label>
                   <div className="relative">
-                    <Input 
-                      id="reg-password" 
-                      type={showPassword ? "text" : "password"} 
-                      placeholder="Mínimo 8 caracteres" 
-                      value={password} 
+                    <Input
+                      id="reg-password"
+                      type={showPassword ? "text" : "password"}
+                      autoComplete="new-password"
+                      placeholder="Mínimo 6 caracteres"
+                      value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      className="border-border/50 focus:border-secondary/60 transition-colors pr-10"
-                      style={{ background: "hsl(240,20%,6%)" }} 
+                      className="border-border/50 focus:border-secondary/60 pr-10"
+                      style={{ background: "hsl(240,20%,6%)" }}
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-secondary transition-colors h-5 w-5 flex items-center justify-center p-0"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-secondary"
+                      aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
                     >
                       {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
                   </div>
-                  {password.length > 0 && password.length < 8 && (
-                    <p className="text-[10px] text-yellow-500/80">Recomendado: 8+ caracteres, números e símbolos.</p>
+                  {password.length > 0 && (
+                    <div className="flex gap-1 h-1 mt-1">
+                      {[0, 1, 2, 3].map((i) => (
+                        <div
+                          key={i}
+                          className="flex-1 rounded-full transition-colors"
+                          style={{
+                            background:
+                              i < passwordStrength
+                                ? passwordStrength <= 1
+                                  ? "hsl(0,70%,50%)"
+                                  : passwordStrength === 2
+                                  ? "hsl(40,80%,50%)"
+                                  : "hsl(140,60%,45%)"
+                                : "hsl(240,15%,18%)",
+                          }}
+                        />
+                      ))}
+                    </div>
                   )}
                 </div>
+
                 <div className="space-y-2">
-                  <Label htmlFor="reg-confirm" className="text-foreground/80 text-sm">Confirmar Senha</Label>
+                  <Label htmlFor="reg-confirm" className="text-foreground/80 text-sm">Confirmar senha</Label>
                   <div className="relative">
-                    <Input 
-                      id="reg-confirm" 
-                      type={showConfirmPassword ? "text" : "password"} 
-                      placeholder="Repita a senha" 
-                      value={confirmPassword} 
+                    <Input
+                      id="reg-confirm"
+                      type={showConfirmPassword ? "text" : "password"}
+                      autoComplete="new-password"
+                      placeholder="Repita a senha"
+                      value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
-                      className="border-border/50 focus:border-secondary/60 transition-colors pr-10"
-                      style={{ background: "hsl(240,20%,6%)" }} 
+                      className="border-border/50 focus:border-secondary/60 pr-10"
+                      style={{ background: "hsl(240,20%,6%)" }}
                     />
                     <button
                       type="button"
                       onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-secondary transition-colors h-5 w-5 flex items-center justify-center p-0"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-secondary"
+                      aria-label={showConfirmPassword ? "Ocultar senha" : "Mostrar senha"}
                     >
                       {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
                   </div>
+                  {confirmPassword.length > 0 && password !== confirmPassword && (
+                    <p className="text-[10px] text-destructive">As senhas não coincidem</p>
+                  )}
                 </div>
               </CardContent>
+
               <CardFooter className="flex flex-col gap-3">
-                <Button type="submit" id="register-submit" className="w-full font-semibold tracking-wide transition-all duration-200" disabled={loading}
-                  style={{ background: "linear-gradient(135deg, hsl(260,60%,45%), hsl(260,60%,35%))", boxShadow: loading ? "none" : "0 0 20px hsl(260 60% 55% / 0.3)" }}>
+                <Button
+                  type="submit"
+                  className="w-full font-semibold tracking-wide"
+                  disabled={loading}
+                  style={{
+                    background: "linear-gradient(135deg, hsl(260,60%,45%), hsl(260,60%,35%))",
+                    boxShadow: loading ? "none" : "0 0 20px hsl(260 60% 55% / 0.3)",
+                  }}
+                >
                   {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Criar Conta"}
                 </Button>
-                
-                <div className="relative w-full">
-                  <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-border/40" /></div>
-                  <div className="relative flex justify-center text-[10px] uppercase"><span className="px-2 text-muted-foreground whitespace-nowrap" style={{ background: "hsl(240,17%,8%)" }}>ou acesso rápido</span></div>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-2 w-full">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="border-border/50 hover:border-secondary/40 text-xs h-9"
-                    style={{ background: "hsl(240,20%,6%)" }}
-                    onClick={async () => {
-                      const result = await supabase.auth.signInWithOAuth({
-                        provider: 'google',
-                        options: { redirectTo: window.location.origin },
-                      });
-                      if (result.error) toast.error(`Erro Google: ${result.error.message}`);
-                    }}
-                  >
-                    Google
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="border-border/50 hover:border-secondary/40 text-secondary/80 hover:text-secondary text-xs h-9"
-                    style={{ background: "hsl(240,20%,6%)" }}
-                    onClick={() => {
-                      loginAsGuest();
-                      navigate("/");
-                      toast.success("Entrando como convidado...");
-                    }}
-                  >
-                    Convidado
-                  </Button>
-                </div>
-                
-                <Link to="/login" id="goto-login" className="mt-2 text-xs text-muted-foreground hover:text-secondary transition-colors">Já tem conta? <span className="text-secondary/80 font-medium">Entrar</span></Link>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full border-border/50 hover:border-secondary/40 text-secondary/80 hover:text-secondary"
+                  style={{ background: "hsl(240,20%,6%)" }}
+                  onClick={() => {
+                    loginAsGuest();
+                    navigate("/");
+                    toast.success("Entrando como convidado...");
+                  }}
+                >
+                  🎮 Entrar como Convidado
+                </Button>
+
+                <Link to="/login" className="mt-1 text-xs text-muted-foreground hover:text-secondary">
+                  Já tem conta? <span className="text-secondary/80 font-medium">Entrar</span>
+                </Link>
               </CardFooter>
             </form>
           )}
