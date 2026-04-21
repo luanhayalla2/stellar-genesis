@@ -6,7 +6,7 @@ import { NUM_STARS, SHIP_ACCEL, BOOST_ACCEL, FRICTION, ROTATION_SPEED, MAX_SPEED
 import { generatePlanets, generateAsteroidShape, generateNebulas, generateBlackHoles } from './space-game/generators';
 import { drawStars, drawNebulas, drawBlackHoles, drawPlanets, drawAsteroids, drawEnemyShips, drawDrones, drawExplosions, drawLasers, drawParticles, drawPowerUps, drawShip, drawHUD, drawGameOver, drawExploration, drawBoss, drawBossLasers, drawLeaderboard, drawRemotePlayers, LeaderboardEntry } from './space-game/renderer';
 import { playLaser, playExplosion, playCollision, playBossHit, playPowerUp, playBossAppear, playWaveComplete, playShieldHit } from './space-game/audio';
-import { Upgrades, SHOP_ITEMS, SHIP_MODELS, getItemCost, getItemLevel, getEquippedShip } from './space-game/shop';
+import { Upgrades, SHOP_ITEMS, SHIP_MODELS, WEAPONS, getItemCost, getItemLevel, getEquippedShip, getEquippedWeapon } from './space-game/shop';
 import { initMultiplayer, broadcastState, cleanupMultiplayer, getRemotePlayers, sendChatMessage, getChatMessages, setOnChat } from './space-game/multiplayer';
 import { startMusic, stopMusic, setMusicIntensity, updateMusic, isMusicPlaying } from './space-game/music';
 import { initTouchControls, getTouchState, isTouchDevice, setupButtonZones, drawTouchControls } from './space-game/touch-controls';
@@ -42,7 +42,7 @@ const SpaceGame = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const keysRef = useRef<Set<string>>(new Set());
   const mouseRef = useRef({ x: 0, y: 0, down: false, active: false });
-  const upgradesRef = useRef<Upgrades>({ max_hp_bonus: 0, damage_bonus: 0, speed_bonus: 0, shield_duration_bonus: 0, drone_count: 0, score_spent: 0, ship_skin: 'default', ships_owned: ['default'] });
+  const upgradesRef = useRef<Upgrades>({ max_hp_bonus: 0, damage_bonus: 0, speed_bonus: 0, shield_duration_bonus: 0, drone_count: 0, score_spent: 0, ship_skin: 'default', ships_owned: ['default'], weapon_equipped: 'laser', weapons_owned: ['laser'] });
   const shipRef = useRef<Ship>(createShip(upgradesRef.current));
   const starsRef = useRef<Star[]>([]);
   const nebulasRef = useRef<Nebula[]>([]);
@@ -88,6 +88,8 @@ const SpaceGame = () => {
         score_spent: data.score_spent,
         ship_skin: (data as any).ship_skin ?? 'default',
         ships_owned: (data as any).ships_owned ?? ['default'],
+        weapon_equipped: (data as any).weapon_equipped ?? 'laser',
+        weapons_owned: (data as any).weapons_owned ?? ['laser'],
       };
       const equippedShip = getEquippedShip(upgradesRef.current);
       shipRef.current.maxHp = SHIP_MAX_HP + data.max_hp_bonus + equippedShip.bonusHp;
@@ -113,6 +115,8 @@ const SpaceGame = () => {
         score_spent: upgrades.score_spent,
         ship_skin: upgrades.ship_skin,
         ships_owned: upgrades.ships_owned,
+        weapon_equipped: upgrades.weapon_equipped,
+        weapons_owned: upgrades.weapons_owned,
       } as any).eq('user_id', user.id);
     } else {
       await supabase.from('user_upgrades').insert({
@@ -382,7 +386,6 @@ const SpaceGame = () => {
         }
         if (keys.has("enter") || keys.has(" ")) {
           keys.delete("enter"); keys.delete(" ");
-          const totalItems = SHOP_ITEMS.length + SHIP_MODELS.length;
           const sel = shopSelectionRef.current;
           if (sel < SHOP_ITEMS.length) {
             // Buy upgrade
@@ -400,7 +403,7 @@ const SpaceGame = () => {
                 playPowerUp();
               }
             }
-          } else {
+          } else if (sel < SHOP_ITEMS.length + SHIP_MODELS.length) {
             // Buy or equip ship
             const model = SHIP_MODELS[sel - SHOP_ITEMS.length];
             const owned = upgrades.ships_owned.includes(model.id);
@@ -418,6 +421,23 @@ const SpaceGame = () => {
               upgrades.ship_skin = model.id;
               ship.maxHp = SHIP_MAX_HP + upgrades.max_hp_bonus + model.bonusHp;
               ship.hp = ship.maxHp;
+              saveUpgrades(upgrades);
+              playPowerUp();
+            }
+          } else {
+            // Buy or equip weapon
+            const wpn = WEAPONS[sel - SHOP_ITEMS.length - SHIP_MODELS.length];
+            const owned = upgrades.weapons_owned.includes(wpn.id);
+            if (!owned) {
+              if (availableScore >= wpn.cost) {
+                upgrades.weapons_owned = [...upgrades.weapons_owned, wpn.id];
+                upgrades.score_spent += wpn.cost;
+                upgrades.weapon_equipped = wpn.id;
+                saveUpgrades(upgrades);
+                playPowerUp();
+              }
+            } else if (upgrades.weapon_equipped !== wpn.id) {
+              upgrades.weapon_equipped = wpn.id;
               saveUpgrades(upgrades);
               playPowerUp();
             }
@@ -589,20 +609,30 @@ const SpaceGame = () => {
 
       // === SHOOT ===
       const firing = keys.has(" ") || keys.has("enter") || (isMobile && touch.firing) || (!isMobile && mouseRef.current.down);
+      const equippedWeapon = getEquippedWeapon(upgrades);
       if (firing && cooldownRef.current <= 0) {
-        cooldownRef.current = LASER_COOLDOWN;
+        cooldownRef.current = equippedWeapon.cooldown;
         playLaser();
-        const shootLaser = (offsetAngle: number) => {
+        const baseDmg = equippedWeapon.damage + upgrades.damage_bonus + equippedShip.bonusDamage;
+        const shootProjectile = (offsetAngle: number) => {
           lasersRef.current.push({
             x: ship.x + Math.cos(ship.angle + offsetAngle) * 22,
             y: ship.y + Math.sin(ship.angle + offsetAngle) * 22,
-            vx: Math.cos(ship.angle + offsetAngle) * LASER_SPEED + ship.vx * 0.3,
-            vy: Math.sin(ship.angle + offsetAngle) * LASER_SPEED + ship.vy * 0.3,
-            life: 60,
+            vx: Math.cos(ship.angle + offsetAngle) * equippedWeapon.speed + ship.vx * 0.3,
+            vy: Math.sin(ship.angle + offsetAngle) * equippedWeapon.speed + ship.vy * 0.3,
+            life: equippedWeapon.life,
+            weapon: equippedWeapon.id,
+            damage: baseDmg,
+            homing: equippedWeapon.homing,
+            speed: equippedWeapon.speed,
           });
         };
-        if (ship.doubleShot) { shootLaser(-0.3); shootLaser(0); shootLaser(0.3); }
-        else { shootLaser(0); }
+
+        if (equippedWeapon.id === 'triple' || ship.doubleShot) {
+          shootProjectile(-0.25); shootProjectile(0); shootProjectile(0.25);
+        } else {
+          shootProjectile(0);
+        }
       }
 
       // === WAVE SYSTEM ===
