@@ -1008,10 +1008,60 @@ export function drawExploration(ctx: CanvasRenderingContext2D, w: number, h: num
     }
   }
 
+  // === WEAPONS HANGAR ===
+  const weaponsTitleY = shipStartY + SHIP_MODELS.length * shipH + 20;
+  ctx.textAlign = "center";
+  ctx.fillStyle = "hsla(120, 80%, 70%, 0.9)";
+  ctx.font = "bold 18px monospace";
+  ctx.fillText("⚔️ ARSENAL DE ARMAS", cx, weaponsTitleY);
+
+  const weaponStartY = weaponsTitleY + 25;
+  const weaponH = 44;
+  for (let k = 0; k < WEAPONS.length; k++) {
+    const wpn = WEAPONS[k];
+    const owned = upgrades.weapons_owned.includes(wpn.id);
+    const equipped = upgrades.weapon_equipped === wpn.id;
+    const canBuy = !owned && availableScore >= wpn.cost;
+    const y = weaponStartY + k * weaponH;
+    const idx = SHOP_ITEMS.length + SHIP_MODELS.length + k;
+    const isSelected = idx === selectedItem;
+
+    const boxW = 460;
+    ctx.fillStyle = isSelected ? "hsla(120, 35%, 18%, 0.7)" : "hsla(120, 20%, 10%, 0.4)";
+    ctx.fillRect(cx - boxW / 2, y - 16, boxW, weaponH - 4);
+    if (isSelected) {
+      ctx.strokeStyle = `hsla(${wpn.color}, 0.9)`;
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(cx - boxW / 2, y - 16, boxW, weaponH - 4);
+    }
+
+    ctx.textAlign = "left";
+    ctx.font = "14px monospace";
+    ctx.fillStyle = equipped ? "hsla(140, 70%, 65%, 0.95)" : owned ? `hsla(${wpn.color}, 0.95)` : canBuy ? "hsla(50, 80%, 70%, 0.9)" : "hsla(0, 30%, 55%, 0.7)";
+    ctx.fillText(`${wpn.icon} ${wpn.name}`, cx - boxW / 2 + 10, y + 2);
+
+    ctx.font = "11px monospace";
+    ctx.fillStyle = "hsla(200, 40%, 60%, 0.7)";
+    ctx.fillText(wpn.description, cx - boxW / 2 + 10, y + 18);
+
+    ctx.textAlign = "right";
+    ctx.font = "13px monospace";
+    if (equipped) {
+      ctx.fillStyle = "hsla(140, 70%, 65%, 0.95)";
+      ctx.fillText("EQUIPADA", cx + boxW / 2 - 10, y + 2);
+    } else if (owned) {
+      ctx.fillStyle = "hsla(200, 60%, 70%, 0.85)";
+      ctx.fillText("Equipar (ENTER)", cx + boxW / 2 - 10, y + 2);
+    } else {
+      ctx.fillStyle = canBuy ? "hsla(50, 80%, 65%, 0.9)" : "hsla(0, 50%, 50%, 0.7)";
+      ctx.fillText(`${wpn.cost} pts`, cx + boxW / 2 - 10, y + 2);
+    }
+  }
+
   ctx.textAlign = "center";
   ctx.fillStyle = "hsla(200, 40%, 60%, 0.5)";
   ctx.font = "12px monospace";
-  ctx.fillText("↑↓ selecionar · ENTER comprar/equipar · ESC decolar", cx, shipStartY + SHIP_MODELS.length * shipH + 20);
+  ctx.fillText("↑↓ selecionar · ENTER comprar/equipar · ESC decolar", cx, weaponStartY + WEAPONS.length * weaponH + 20);
   ctx.textAlign = "left";
 }
 
