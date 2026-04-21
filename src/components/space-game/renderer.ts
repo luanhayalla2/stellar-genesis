@@ -1,7 +1,7 @@
 import { Star, Nebula, Ship, Drone, EnemyShip, BlackHole, Particle, Laser, Asteroid, Explosion, PowerUp, Planet, GameState, Boss, BossLaser, WaveState } from './types';
 import { seededRandom } from './generators';
 import { LANDING_DIST } from './constants';
-import { Upgrades, SHOP_ITEMS, SHIP_MODELS, getItemCost, getItemLevel } from './shop';
+import { Upgrades, SHOP_ITEMS, SHIP_MODELS, WEAPONS, getItemCost, getItemLevel, ShipShape } from './shop';
 import type { RemotePlayer } from './multiplayer';
 
 export function drawStars(ctx: CanvasRenderingContext2D, stars: Star[], camX: number, camY: number, w: number, h: number, frame: number) {
@@ -313,20 +313,78 @@ export function drawExplosions(ctx: CanvasRenderingContext2D, explosions: Explos
 export function drawLasers(ctx: CanvasRenderingContext2D, lasers: Laser[], camX: number, camY: number) {
   for (const l of lasers) {
     const lx = l.x - camX, ly = l.y - camY;
-    const len = 12;
     const angle = Math.atan2(l.vy, l.vx);
+    const weapon = l.weapon ?? 'laser';
+
+    if (weapon === 'plasma') {
+      // Big glowing magenta orb
+      ctx.save();
+      ctx.translate(lx, ly);
+      const pulse = 0.85 + Math.sin(Date.now() * 0.02) * 0.15;
+      const r = 9 * pulse;
+      ctx.shadowColor = "hsla(300, 100%, 65%, 0.95)";
+      ctx.shadowBlur = 22;
+      const g = ctx.createRadialGradient(0, 0, 1, 0, 0, r);
+      g.addColorStop(0, "hsla(300, 100%, 95%, 1)");
+      g.addColorStop(0.4, "hsla(300, 95%, 70%, 0.9)");
+      g.addColorStop(1, "hsla(280, 90%, 40%, 0)");
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(0, 0, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.restore();
+      continue;
+    }
+
+    if (weapon === 'missile') {
+      // Slim missile body with flame trail
+      ctx.save();
+      ctx.translate(lx, ly);
+      ctx.rotate(angle);
+      // Trail
+      ctx.shadowColor = "hsla(20, 100%, 60%, 0.9)";
+      ctx.shadowBlur = 14;
+      const tg = ctx.createLinearGradient(-18, 0, 0, 0);
+      tg.addColorStop(0, "hsla(40, 100%, 70%, 0)");
+      tg.addColorStop(1, "hsla(20, 100%, 60%, 0.9)");
+      ctx.fillStyle = tg;
+      ctx.beginPath();
+      ctx.moveTo(-18, -2);
+      ctx.lineTo(-4, 0);
+      ctx.lineTo(-18, 2);
+      ctx.closePath();
+      ctx.fill();
+      // Body
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = "hsl(0, 0%, 85%)";
+      ctx.beginPath();
+      ctx.moveTo(8, 0);
+      ctx.lineTo(-4, -2.5);
+      ctx.lineTo(-4, 2.5);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = "hsl(20, 90%, 55%)";
+      ctx.fillRect(-4, -2.5, 2, 5);
+      ctx.restore();
+      continue;
+    }
+
+    // Default laser / triple → colored beam
+    const hue = weapon === 'triple' ? 200 : 120;
+    const len = 12;
     ctx.save();
     ctx.translate(lx, ly);
     ctx.rotate(angle);
-    ctx.shadowColor = "hsla(120, 100%, 60%, 0.8)";
+    ctx.shadowColor = `hsla(${hue}, 100%, 60%, 0.8)`;
     ctx.shadowBlur = 8;
     ctx.beginPath();
     ctx.moveTo(-len, 0);
     ctx.lineTo(0, 0);
-    ctx.strokeStyle = "hsla(120, 90%, 65%, 0.9)";
+    ctx.strokeStyle = `hsla(${hue}, 90%, 65%, 0.9)`;
     ctx.lineWidth = 3;
     ctx.stroke();
-    ctx.strokeStyle = "hsla(120, 100%, 85%, 1)";
+    ctx.strokeStyle = `hsla(${hue}, 100%, 90%, 1)`;
     ctx.lineWidth = 1.5;
     ctx.stroke();
     ctx.shadowBlur = 0;
@@ -404,7 +462,7 @@ export function drawDrones(ctx: CanvasRenderingContext2D, drones: Drone[], camX:
   }
 }
 
-export function drawShip(ctx: CanvasRenderingContext2D, ship: Ship, w: number, h: number, hullColor: string = "200, 85%, 55%") {
+export function drawShip(ctx: CanvasRenderingContext2D, ship: Ship, w: number, h: number, hullColor: string = "200, 85%, 55%", shape: ShipShape = 'classic') {
   const sx = w / 2, sy = h / 2;
   if (ship.invincible > 0 && Math.floor(ship.invincible / 4) % 2 === 0) return;
   ctx.save();
@@ -416,63 +474,142 @@ export function drawShip(ctx: CanvasRenderingContext2D, ship: Ship, w: number, h
     const flameH = (ship.boosting ? 45 : 25) + Math.sin(Date.now() * 0.05) * 5;
     const flameW = (ship.boosting ? 12 : 8) + Math.sin(Date.now() * 0.03) * 2;
     const fg = ctx.createLinearGradient(0, 10, 0, 10 + flameH);
-    const hue = ship.boosting ? 260 : 200; // Purple for boost, blue for normal
+    const hue = ship.boosting ? 260 : 200;
     fg.addColorStop(0, `hsla(${hue}, 90%, 70%, 0.8)`);
     fg.addColorStop(0.4, `hsla(${hue}, 80%, 50%, 0.4)`);
     fg.addColorStop(1, `hsla(${hue}, 70%, 30%, 0)`);
-    
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
     ctx.beginPath();
-    ctx.moveTo(-flameW/2, 10);
-    ctx.quadraticCurveTo(0, 10 + flameH * 1.2, flameW/2, 10);
+    ctx.moveTo(-flameW / 2, 10);
+    ctx.quadraticCurveTo(0, 10 + flameH * 1.2, flameW / 2, 10);
     ctx.fillStyle = fg;
     ctx.fill();
-    
-    // Core flame
     ctx.beginPath();
-    ctx.moveTo(-flameW/4, 10);
-    ctx.quadraticCurveTo(0, 10 + flameH * 0.6, flameW/4, 10);
+    ctx.moveTo(-flameW / 4, 10);
+    ctx.quadraticCurveTo(0, 10 + flameH * 0.6, flameW / 4, 10);
     ctx.fillStyle = `hsla(${hue}, 100%, 90%, 0.6)`;
     ctx.fill();
     ctx.restore();
   }
 
   if (ship.shield) {
-    const sg = ctx.createRadialGradient(0, 0, 15, 0, 0, 28);
+    const sg = ctx.createRadialGradient(0, 0, 15, 0, 0, 32);
     sg.addColorStop(0, "hsla(200, 90%, 60%, 0.05)");
     sg.addColorStop(0.8, "hsla(200, 90%, 60%, 0.15)");
     sg.addColorStop(1, "hsla(200, 90%, 60%, 0)");
     ctx.fillStyle = sg;
     ctx.beginPath();
-    ctx.arc(0, 0, 28, 0, Math.PI * 2);
+    ctx.arc(0, 0, 32, 0, Math.PI * 2);
     ctx.fill();
     ctx.strokeStyle = "hsla(200, 90%, 65%, 0.5)";
     ctx.lineWidth = 1.5;
     ctx.stroke();
   }
-  const shipGlow = ctx.createRadialGradient(0, 0, 5, 0, 0, 30);
+
+  const shipGlow = ctx.createRadialGradient(0, 0, 5, 0, 0, 34);
   shipGlow.addColorStop(0, `hsla(${hullColor}, 0.18)`);
   shipGlow.addColorStop(1, `hsla(${hullColor}, 0)`);
   ctx.fillStyle = shipGlow;
-  ctx.fillRect(-30, -30, 60, 60);
-  ctx.beginPath();
-  ctx.moveTo(0, -20);
-  ctx.lineTo(-12, 14);
-  ctx.lineTo(-4, 8);
-  ctx.lineTo(0, 10);
-  ctx.lineTo(4, 8);
-  ctx.lineTo(12, 14);
-  ctx.closePath();
-  ctx.fillStyle = "hsl(210, 30%, 20%)";
-  ctx.fill();
-  ctx.strokeStyle = `hsl(${hullColor})`;
+  ctx.fillRect(-34, -34, 68, 68);
+
+  const hullFill = "hsl(210, 30%, 18%)";
+  const hullStroke = `hsl(${hullColor})`;
+  ctx.fillStyle = hullFill;
+  ctx.strokeStyle = hullStroke;
   ctx.lineWidth = 1.5;
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.arc(0, -4, 3, 0, Math.PI * 2);
-  ctx.fillStyle = `hsl(${hullColor})`;
-  ctx.fill();
+
+  if (shape === 'interceptor') {
+    // Long, sleek arrow with swept wings
+    ctx.beginPath();
+    ctx.moveTo(0, -24);
+    ctx.lineTo(-4, -6);
+    ctx.lineTo(-14, 12);
+    ctx.lineTo(-6, 8);
+    ctx.lineTo(-3, 14);
+    ctx.lineTo(3, 14);
+    ctx.lineTo(6, 8);
+    ctx.lineTo(14, 12);
+    ctx.lineTo(4, -6);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    // Twin engines
+    ctx.fillStyle = `hsl(${hullColor})`;
+    ctx.fillRect(-9, 10, 3, 4);
+    ctx.fillRect(6, 10, 3, 4);
+    // Cockpit
+    ctx.beginPath();
+    ctx.arc(0, -10, 2.5, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (shape === 'destroyer') {
+    // Wide, bulky hull with side cannons
+    ctx.beginPath();
+    ctx.moveTo(0, -18);
+    ctx.lineTo(-8, -10);
+    ctx.lineTo(-16, 6);
+    ctx.lineTo(-14, 14);
+    ctx.lineTo(-4, 12);
+    ctx.lineTo(0, 16);
+    ctx.lineTo(4, 12);
+    ctx.lineTo(14, 14);
+    ctx.lineTo(16, 6);
+    ctx.lineTo(8, -10);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    // Side cannons
+    ctx.fillStyle = `hsl(${hullColor})`;
+    ctx.fillRect(-13, -4, 3, 10);
+    ctx.fillRect(10, -4, 3, 10);
+    // Cockpit (rectangular)
+    ctx.fillRect(-3, -8, 6, 6);
+  } else if (shape === 'titan') {
+    // Alien diamond with crystalline wings
+    ctx.beginPath();
+    ctx.moveTo(0, -22);
+    ctx.lineTo(-6, -4);
+    ctx.lineTo(-18, 0);
+    ctx.lineTo(-10, 6);
+    ctx.lineTo(-12, 16);
+    ctx.lineTo(0, 10);
+    ctx.lineTo(12, 16);
+    ctx.lineTo(10, 6);
+    ctx.lineTo(18, 0);
+    ctx.lineTo(6, -4);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    // Glowing core
+    const cg = ctx.createRadialGradient(0, 0, 1, 0, 0, 8);
+    cg.addColorStop(0, `hsla(${hullColor}, 1)`);
+    cg.addColorStop(1, `hsla(${hullColor}, 0)`);
+    ctx.fillStyle = cg;
+    ctx.beginPath();
+    ctx.arc(0, 0, 8, 0, Math.PI * 2);
+    ctx.fill();
+    // Wing tip lights
+    ctx.fillStyle = `hsl(${hullColor})`;
+    ctx.beginPath(); ctx.arc(-18, 0, 2, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(18, 0, 2, 0, Math.PI * 2); ctx.fill();
+  } else {
+    // Classic triangle
+    ctx.beginPath();
+    ctx.moveTo(0, -20);
+    ctx.lineTo(-12, 14);
+    ctx.lineTo(-4, 8);
+    ctx.lineTo(0, 10);
+    ctx.lineTo(4, 8);
+    ctx.lineTo(12, 14);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(0, -4, 3, 0, Math.PI * 2);
+    ctx.fillStyle = `hsl(${hullColor})`;
+    ctx.fill();
+  }
+
   ctx.restore();
 }
 
