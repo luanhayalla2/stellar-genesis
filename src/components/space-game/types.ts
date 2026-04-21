@@ -29,6 +29,10 @@ export interface Particle {
 }
 export interface Laser {
   x: number; y: number; vx: number; vy: number; life: number;
+  weapon?: 'laser' | 'triple' | 'missile' | 'plasma';
+  damage?: number;
+  homing?: boolean;
+  speed?: number;
 }
 export interface Planet {
   x: number; y: number; radius: number;

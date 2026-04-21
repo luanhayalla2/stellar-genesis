@@ -6,7 +6,7 @@ import { NUM_STARS, SHIP_ACCEL, BOOST_ACCEL, FRICTION, ROTATION_SPEED, MAX_SPEED
 import { generatePlanets, generateAsteroidShape, generateNebulas, generateBlackHoles } from './space-game/generators';
 import { drawStars, drawNebulas, drawBlackHoles, drawPlanets, drawAsteroids, drawEnemyShips, drawDrones, drawExplosions, drawLasers, drawParticles, drawPowerUps, drawShip, drawHUD, drawGameOver, drawExploration, drawBoss, drawBossLasers, drawLeaderboard, drawRemotePlayers, LeaderboardEntry } from './space-game/renderer';
 import { playLaser, playExplosion, playCollision, playBossHit, playPowerUp, playBossAppear, playWaveComplete, playShieldHit } from './space-game/audio';
-import { Upgrades, SHOP_ITEMS, SHIP_MODELS, getItemCost, getItemLevel, getEquippedShip } from './space-game/shop';
+import { Upgrades, SHOP_ITEMS, SHIP_MODELS, WEAPONS, getItemCost, getItemLevel, getEquippedShip, getEquippedWeapon } from './space-game/shop';
 import { initMultiplayer, broadcastState, cleanupMultiplayer, getRemotePlayers, sendChatMessage, getChatMessages, setOnChat } from './space-game/multiplayer';
 import { startMusic, stopMusic, setMusicIntensity, updateMusic, isMusicPlaying } from './space-game/music';
 import { initTouchControls, getTouchState, isTouchDevice, setupButtonZones, drawTouchControls } from './space-game/touch-controls';
@@ -42,7 +42,7 @@ const SpaceGame = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const keysRef = useRef<Set<string>>(new Set());
   const mouseRef = useRef({ x: 0, y: 0, down: false, active: false });
-  const upgradesRef = useRef<Upgrades>({ max_hp_bonus: 0, damage_bonus: 0, speed_bonus: 0, shield_duration_bonus: 0, drone_count: 0, score_spent: 0, ship_skin: 'default', ships_owned: ['default'] });
+  const upgradesRef = useRef<Upgrades>({ max_hp_bonus: 0, damage_bonus: 0, speed_bonus: 0, shield_duration_bonus: 0, drone_count: 0, score_spent: 0, ship_skin: 'default', ships_owned: ['default'], weapon_equipped: 'laser', weapons_owned: ['laser'] });
   const shipRef = useRef<Ship>(createShip(upgradesRef.current));
   const starsRef = useRef<Star[]>([]);
   const nebulasRef = useRef<Nebula[]>([]);
@@ -88,6 +88,8 @@ const SpaceGame = () => {
         score_spent: data.score_spent,
         ship_skin: (data as any).ship_skin ?? 'default',
         ships_owned: (data as any).ships_owned ?? ['default'],
+        weapon_equipped: (data as any).weapon_equipped ?? 'laser',
+        weapons_owned: (data as any).weapons_owned ?? ['laser'],
       };
       const equippedShip = getEquippedShip(upgradesRef.current);
       shipRef.current.maxHp = SHIP_MAX_HP + data.max_hp_bonus + equippedShip.bonusHp;
@@ -113,6 +115,8 @@ const SpaceGame = () => {
         score_spent: upgrades.score_spent,
         ship_skin: upgrades.ship_skin,
         ships_owned: upgrades.ships_owned,
+        weapon_equipped: upgrades.weapon_equipped,
+        weapons_owned: upgrades.weapons_owned,
       } as any).eq('user_id', user.id);
     } else {
       await supabase.from('user_upgrades').insert({
@@ -377,12 +381,11 @@ const SpaceGame = () => {
           keys.delete("arrowup"); keys.delete("w");
         }
         if (keys.has("arrowdown") || keys.has("s")) {
-          shopSelectionRef.current = Math.min(SHOP_ITEMS.length + SHIP_MODELS.length - 1, shopSelectionRef.current + 1);
+          shopSelectionRef.current = Math.min(SHOP_ITEMS.length + SHIP_MODELS.length + WEAPONS.length - 1, shopSelectionRef.current + 1);
           keys.delete("arrowdown"); keys.delete("s");
         }
         if (keys.has("enter") || keys.has(" ")) {
           keys.delete("enter"); keys.delete(" ");
-          const totalItems = SHOP_ITEMS.length + SHIP_MODELS.length;
           const sel = shopSelectionRef.current;
           if (sel < SHOP_ITEMS.length) {
             // Buy upgrade
@@ -400,7 +403,7 @@ const SpaceGame = () => {
                 playPowerUp();
               }
             }
-          } else {
+          } else if (sel < SHOP_ITEMS.length + SHIP_MODELS.length) {
             // Buy or equip ship
             const model = SHIP_MODELS[sel - SHOP_ITEMS.length];
             const owned = upgrades.ships_owned.includes(model.id);
@@ -418,6 +421,23 @@ const SpaceGame = () => {
               upgrades.ship_skin = model.id;
               ship.maxHp = SHIP_MAX_HP + upgrades.max_hp_bonus + model.bonusHp;
               ship.hp = ship.maxHp;
+              saveUpgrades(upgrades);
+              playPowerUp();
+            }
+          } else {
+            // Buy or equip weapon
+            const wpn = WEAPONS[sel - SHOP_ITEMS.length - SHIP_MODELS.length];
+            const owned = upgrades.weapons_owned.includes(wpn.id);
+            if (!owned) {
+              if (availableScore >= wpn.cost) {
+                upgrades.weapons_owned = [...upgrades.weapons_owned, wpn.id];
+                upgrades.score_spent += wpn.cost;
+                upgrades.weapon_equipped = wpn.id;
+                saveUpgrades(upgrades);
+                playPowerUp();
+              }
+            } else if (upgrades.weapon_equipped !== wpn.id) {
+              upgrades.weapon_equipped = wpn.id;
               saveUpgrades(upgrades);
               playPowerUp();
             }
@@ -589,20 +609,30 @@ const SpaceGame = () => {
 
       // === SHOOT ===
       const firing = keys.has(" ") || keys.has("enter") || (isMobile && touch.firing) || (!isMobile && mouseRef.current.down);
+      const equippedWeapon = getEquippedWeapon(upgrades);
       if (firing && cooldownRef.current <= 0) {
-        cooldownRef.current = LASER_COOLDOWN;
+        cooldownRef.current = equippedWeapon.cooldown;
         playLaser();
-        const shootLaser = (offsetAngle: number) => {
+        const baseDmg = equippedWeapon.damage + upgrades.damage_bonus + equippedShip.bonusDamage;
+        const shootProjectile = (offsetAngle: number) => {
           lasersRef.current.push({
             x: ship.x + Math.cos(ship.angle + offsetAngle) * 22,
             y: ship.y + Math.sin(ship.angle + offsetAngle) * 22,
-            vx: Math.cos(ship.angle + offsetAngle) * LASER_SPEED + ship.vx * 0.3,
-            vy: Math.sin(ship.angle + offsetAngle) * LASER_SPEED + ship.vy * 0.3,
-            life: 60,
+            vx: Math.cos(ship.angle + offsetAngle) * equippedWeapon.speed + ship.vx * 0.3,
+            vy: Math.sin(ship.angle + offsetAngle) * equippedWeapon.speed + ship.vy * 0.3,
+            life: equippedWeapon.life,
+            weapon: equippedWeapon.id,
+            damage: baseDmg,
+            homing: equippedWeapon.homing,
+            speed: equippedWeapon.speed,
           });
         };
-        if (ship.doubleShot) { shootLaser(-0.3); shootLaser(0); shootLaser(0.3); }
-        else { shootLaser(0); }
+
+        if (equippedWeapon.id === 'triple' || ship.doubleShot) {
+          shootProjectile(-0.25); shootProjectile(0); shootProjectile(0.25);
+        } else {
+          shootProjectile(0);
+        }
       }
 
       // === WAVE SYSTEM ===
@@ -798,7 +828,7 @@ const SpaceGame = () => {
           const l = lasersRef.current[li];
           const ldist = Math.sqrt((l.x - e.x) ** 2 + (l.y - e.y) ** 2);
           if (ldist < 18) {
-            e.hp -= (1 + upgrades.damage_bonus + equippedShip.bonusDamage);
+            e.hp -= (l.damage ?? (1 + upgrades.damage_bonus + equippedShip.bonusDamage));
             lasersRef.current.splice(li, 1);
             if (e.hp <= 0) {
               scoreRef.current += 150 + ws.wave * 20;
@@ -849,8 +879,32 @@ const SpaceGame = () => {
         return l.life > 0;
       });
 
-      // === UPDATE LASERS ===
+      // === UPDATE LASERS (with missile homing) ===
       lasersRef.current = lasersRef.current.filter(l => {
+        if (l.homing) {
+          let nearestDist = 380;
+          let tx = 0, ty = 0, found = false;
+          for (const a of asteroidsRef.current) {
+            const dd = Math.sqrt((a.x - l.x) ** 2 + (a.y - l.y) ** 2);
+            if (dd < nearestDist) { nearestDist = dd; tx = a.x; ty = a.y; found = true; }
+          }
+          for (const e of enemyShipsRef.current) {
+            const dd = Math.sqrt((e.x - l.x) ** 2 + (e.y - l.y) ** 2);
+            if (dd < nearestDist) { nearestDist = dd; tx = e.x; ty = e.y; found = true; }
+          }
+          if (found) {
+            const desired = Math.atan2(ty - l.y, tx - l.x);
+            const current = Math.atan2(l.vy, l.vx);
+            let diff = desired - current;
+            while (diff > Math.PI) diff -= Math.PI * 2;
+            while (diff < -Math.PI) diff += Math.PI * 2;
+            const turn = Math.max(-0.12, Math.min(0.12, diff));
+            const newAng = current + turn;
+            const sp = l.speed ?? 6.5;
+            l.vx = Math.cos(newAng) * sp;
+            l.vy = Math.sin(newAng) * sp;
+          }
+        }
         l.x += l.vx; l.y += l.vy; l.life--;
         return l.life > 0;
       });
@@ -903,7 +957,7 @@ const SpaceGame = () => {
           const a = asteroidsRef.current[ai];
           const dx = l.x - a.x, dy = l.y - a.y;
           if (Math.sqrt(dx * dx + dy * dy) < a.radius + 4) {
-            a.hp -= dmg;
+            a.hp -= (l.damage ?? dmg);
             lasersRef.current.splice(li, 1);
             if (a.hp <= 0) {
               scoreRef.current += Math.round(a.radius) + ws.wave * 5;
@@ -1010,7 +1064,7 @@ const SpaceGame = () => {
       if (bossRef.current && bossRef.current.hp > 0) {
         drawBoss(ctx, bossRef.current, camX, camY, frameRef.current);
       }
-      drawShip(ctx, ship, w, h, equippedShip.color);
+      drawShip(ctx, ship, w, h, equippedShip.color, equippedShip.shape);
       drawHUD(ctx, ship, scoreRef.current, w, h, planetsRef.current, gameStateRef.current, waveStateRef.current, getRemotePlayers().length);
 
       // === DRAW TOUCH CONTROLS ===
