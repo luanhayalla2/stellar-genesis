@@ -879,8 +879,32 @@ const SpaceGame = () => {
         return l.life > 0;
       });
 
-      // === UPDATE LASERS ===
+      // === UPDATE LASERS (with missile homing) ===
       lasersRef.current = lasersRef.current.filter(l => {
+        if (l.homing) {
+          let nearestDist = 380;
+          let tx = 0, ty = 0, found = false;
+          for (const a of asteroidsRef.current) {
+            const dd = Math.sqrt((a.x - l.x) ** 2 + (a.y - l.y) ** 2);
+            if (dd < nearestDist) { nearestDist = dd; tx = a.x; ty = a.y; found = true; }
+          }
+          for (const e of enemyShipsRef.current) {
+            const dd = Math.sqrt((e.x - l.x) ** 2 + (e.y - l.y) ** 2);
+            if (dd < nearestDist) { nearestDist = dd; tx = e.x; ty = e.y; found = true; }
+          }
+          if (found) {
+            const desired = Math.atan2(ty - l.y, tx - l.x);
+            const current = Math.atan2(l.vy, l.vx);
+            let diff = desired - current;
+            while (diff > Math.PI) diff -= Math.PI * 2;
+            while (diff < -Math.PI) diff += Math.PI * 2;
+            const turn = Math.max(-0.12, Math.min(0.12, diff));
+            const newAng = current + turn;
+            const sp = l.speed ?? 6.5;
+            l.vx = Math.cos(newAng) * sp;
+            l.vy = Math.sin(newAng) * sp;
+          }
+        }
         l.x += l.vx; l.y += l.vy; l.life--;
         return l.life > 0;
       });
