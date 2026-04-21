@@ -828,7 +828,7 @@ const SpaceGame = () => {
           const l = lasersRef.current[li];
           const ldist = Math.sqrt((l.x - e.x) ** 2 + (l.y - e.y) ** 2);
           if (ldist < 18) {
-            e.hp -= (1 + upgrades.damage_bonus + equippedShip.bonusDamage);
+            e.hp -= (l.damage ?? (1 + upgrades.damage_bonus + equippedShip.bonusDamage));
             lasersRef.current.splice(li, 1);
             if (e.hp <= 0) {
               scoreRef.current += 150 + ws.wave * 20;
@@ -933,7 +933,7 @@ const SpaceGame = () => {
           const a = asteroidsRef.current[ai];
           const dx = l.x - a.x, dy = l.y - a.y;
           if (Math.sqrt(dx * dx + dy * dy) < a.radius + 4) {
-            a.hp -= dmg;
+            a.hp -= (l.damage ?? dmg);
             lasersRef.current.splice(li, 1);
             if (a.hp <= 0) {
               scoreRef.current += Math.round(a.radius) + ws.wave * 5;
@@ -1040,7 +1040,7 @@ const SpaceGame = () => {
       if (bossRef.current && bossRef.current.hp > 0) {
         drawBoss(ctx, bossRef.current, camX, camY, frameRef.current);
       }
-      drawShip(ctx, ship, w, h, equippedShip.color);
+      drawShip(ctx, ship, w, h, equippedShip.color, equippedShip.shape);
       drawHUD(ctx, ship, scoreRef.current, w, h, planetsRef.current, gameStateRef.current, waveStateRef.current, getRemotePlayers().length);
 
       // === DRAW TOUCH CONTROLS ===
